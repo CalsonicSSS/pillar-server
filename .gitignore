@@ -1,0 +1,21 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+ENV/
+env/
+.env
+.env.*
+notes.txt
+test.py
+others
+sample_data_structures.py
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo

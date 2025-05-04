@@ -1,0 +1,60 @@
+- pip freeze > requirements.txt (The requirements.txt file doesn't automatically update when you install packages. You need to explicitly update it)
+
+- pip install -r requirements.txt (to install all additional packages from other branch merged in)
+
+- venv\Scripts\activate
+
+- uvicorn app.main:app --reload 
+
+--------------------------------------------------
+
+Clerk & jwt user auth testing
+
+- create a testing template in JWT Templates 
+
+- Set the token lifetime to a high value (e.g., 315360000 seconds for 10 years) to prevent expiration during testing. 
+
+- manually create a user in dashboard
+
+- Click on Impersonate User. This will open a new window as the test user.
+
+- inspect the browser in that new window + "await window.Clerk.session.getToken({ template: "testing-template" })"
+(Clerk does not automatically create JWTs for all templates, but You manually request a token by specifying which template you want)
+
+- This will return the JWT token, which you can use for further testing
+
+--------------------------------------------------
+
+Email OAuth testing
+
+- get user jwt (eyJhbGciOiJSUzI1NiIsImNhdCI6ImNsX0I3ZDRQRDIyMkFBQSIsImtpZCI6Imluc18yd04zOVRadWFyVnRSNWQ3WVpLZUNaTTFjdmkiLCJ0eXAiOiJKV1QifQ.eyJhcHBfbWV0YWRhdGEiOnt9LCJhdWQiOiJmYXN0YXBpIiwiYXpwIjoiaHR0cHM6Ly9kaXJlY3QtbW9sZS0xNi5hY2NvdW50cy5kZXYiLCJlbWFpbCI6ImNhbHNvbjEyM0BnbWFpbC5jb20iLCJleHAiOjE3Nzc5MjE0NzIsImlhdCI6MTc0NjM4NTQ3MiwiaXNzIjoiaHR0cHM6Ly9kaXJlY3QtbW9sZS0xNi5jbGVyay5hY2NvdW50cy5kZXYiLCJqdGkiOiJhNTUzNDJhNWZkZTMwNTYyY2FkYiIsIm5iZiI6MTc0NjM4NTQ2Nywicm9sZSI6ImF1dGhlbnRpY2F0ZWQiLCJzdWIiOiJ1c2VyXzJ3ZHhQRXU3Q0tWQmFQUlJSa2FIMGlJbHB4byIsInVzZXJfaWQiOiJ1c2VyXzJ3ZHhQRXU3Q0tWQmFQUlJSa2FIMGlJbHB4byIsInVzZXJfbWV0YWRhdGEiOnt9fQ.VKbwj5lREAHvQyF3kx9EnFPxindugCdmdg_DQiSx_iOP0ipGEpNoqCuLpbsFazzbJ16EdxQegZ82ZOsyaewhIeGgbcN-lJkyT-1jpBOvZYwRqmIceZFnvuNsHKsnRxMtmvG48WB1-FIPjaOwvJCWjJSUBl8DwPwG2vLYn5AuJscyeQzmO2kl1EQV1EtuwjHcq4uLIdwwtEWwTOhK8duc1gigpcx1jOt1hqYgUFL6eMwN41J_Dyn3CuCq-FgbauzT1yh3L95M_9mhrxDA8LpfuvxMYb5DiVRLCAiSqneS5s7InCmNL3pnjrW-ZDzdx1PM4xyfCLs5_MJyKBdBagLxxA)
+
+- create a new corresponding project and get its ID (d349900a-c26a-40e2-89d6-f7da8273ec8d)
+
+- python test_oauth.py
+
+--------------------------------------------------
+
+deploy on render you need to add:
+
+build command: pip install -r requirements.txt
+
+start command: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+
+add to Environment Variables "PORT: 8000"
+
+--------------------------------------------------
+
+for folder naming change
+
+1. Remove the old venv directory
+Remove-Item -Path .\venv -Recurse -Force
+
+2. reate a new virtual environment:
+python -m venv venv
+
+3. Activate the new environment
+.\venv\Scripts\Activate.ps1
+
+4. Reinstall your dependencies
+pip install -r requirements.txt
