@@ -13,7 +13,7 @@ async def create_new_project(supabase: AsyncClient, new_project_payload: Project
         new_project_data = new_project_payload.model_dump()
         new_project_data["user_id"] = str(user_id)  # we need to convert UUID to str for json serialization
         new_project_data["status"] = "Active"  # "Active" for new projects
-        new_project_data["start_date"] = new_project_data["start_date"].isoformat()  # dont add "Z" here
+        new_project_data["start_date"] = new_project_data["start_date"].isoformat()  # dont add "Z" here and it should already be in UTC from frontend
         new_project_data["avatar_letter"] = getProjectAvatarLetter(new_project_data["name"])
 
         print("new_project_data:", new_project_data)

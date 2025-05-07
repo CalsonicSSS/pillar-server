@@ -23,7 +23,7 @@ def generate_gmail_auth_url(channel_id: str) -> str:
     # Define OAuth parameters
     params = {
         "client_id": app_config_settings.GOOGLE_CLIENT_ID,
-        "redirect_uri": app_config_settings.GOOGLE_REDIRECT_URI,
+        "redirect_uri": app_config_settings.GOOGLE_REDIRECT_URI,  # this is specify which redirect URI to use after user consent for this client ID setup on GCP
         "response_type": "code",  # tells Google we want an authorization code
         "scope": app_config_settings.GOOGLE_SCOPES,
         "access_type": "offline",  # It requests a refresh token in addition to the access token
@@ -56,7 +56,7 @@ async def exchange_auth_code_for_tokens(auth_code: str, httpx_client: httpx.Asyn
             "client_id": app_config_settings.GOOGLE_CLIENT_ID,
             "client_secret": app_config_settings.GOOGLE_CLIENT_SECRET,  # It's sent server-to-server (never exposed to frontend) over HTTPS, which is secure
             "code": auth_code,  # the authorization code received from Google after user consent
-            "redirect_uri": app_config_settings.GOOGLE_REDIRECT_URI,  # this must match the one used in the auth URL and for security reasons
+            "redirect_uri": app_config_settings.GOOGLE_REDIRECT_URI,  # this must be used again here for security reasons so attackers can't use the code
             "grant_type": "authorization_code",
         }
 
@@ -65,8 +65,8 @@ async def exchange_auth_code_for_tokens(auth_code: str, httpx_client: httpx.Asyn
         exchanged_token_data = response.json()
         print("exchanged_token_data:", exchanged_token_data)
 
-        # Google returns expires_in which is seconds until token expiration (typically 3600 for 1 hour).
-        # We convert this to an absolute timestamp by adding current time, making it easier to check if the token is expired later
+        # Google returns "expires_in" which is seconds until access token expiration (typically 3600 for 1 hour).
+        # We convert this to an absolute timestamp by adding current epoch second time, making it easier to check if the token is expired later
         if "expires_in" in exchanged_token_data:
             # converts it to an integer of current time in seconds since the epoch + the expires_in value
             exchanged_token_data["expiry_timestamp"] = int(time.time()) + exchanged_token_data["expires_in"]

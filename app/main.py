@@ -1,5 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+import httpx
 from contextlib import asynccontextmanager
 from app.core.config import app_config_settings
 from supabase._async.client import create_client
@@ -7,7 +8,7 @@ from app.routes.project_routes import project_router
 from app.routes.webhook_routes import webhook_router
 from app.routes.channel_routes import channel_router
 from app.routes.oauth_gmail_routes import oauth_router
-import httpx
+from app.routes.message_routes import message_router
 
 
 @asynccontextmanager
@@ -45,6 +46,7 @@ app.include_router(project_router, prefix=app_config_settings.API_V1_PREFIX)
 app.include_router(webhook_router, prefix=app_config_settings.API_V1_PREFIX)
 app.include_router(channel_router, prefix=app_config_settings.API_V1_PREFIX)
 app.include_router(oauth_router, prefix=app_config_settings.API_V1_PREFIX)
+app.include_router(message_router, prefix=app_config_settings.API_V1_PREFIX)
 
 
 @app.get("/")

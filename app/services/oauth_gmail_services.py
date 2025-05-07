@@ -21,7 +21,7 @@ async def initialize_gmail_oauth(supabase: AsyncClient, project_id: str, user_id
     """
     print("initialize_gmail_oauth service function runs")
     try:
-        # Verify project belongs to user
+        # Verify project belongs to user (this very important here so we know the channel belongs to the specific user eventually)
         project_result = await supabase.table("projects").select("id").eq("id", project_id).eq("user_id", str(user_id)).execute()
 
         # if no project found or not belongs to user, this will return empty list

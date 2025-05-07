@@ -66,17 +66,17 @@ async def get_project_channels(supabase: AsyncClient, project_id: UUID, user_id:
 async def get_channel_by_id(supabase: AsyncClient, channel_id: UUID, user_id: UUID) -> ChannelResponse:
     print("get_channel_by_id service function runs")
     try:
-        # Remote Procedure Call (RPC): encapsulate authorization and logic on the database side, Reduces client-side complexity and helps with security.
-        # verify that a channel belongs to a project owned by the requesting user
-        # Find and return a channel, but only if the channel’s associated project belongs to the given user.
-        verification_result = await supabase.rpc(
-            "get_channel_with_project_verification", {"channel_id_param": str(channel_id), "user_id_param": str(user_id)}
+        # Remote Procedure Call (RPC): create and store custom sql script under a function as REUSEABLE script that can be called.
+        # the goal of any verification rpc in this app is to check if the SPECIFIC USER has MATCHING access to the data.
+        # the logics behind the verification is that we use join (inner join) to filter as the way to check if the user has access to the data.
+        channel_verification_result = await supabase.rpc(
+            "get_channel_with_user_verification", {"channel_id_param": str(channel_id), "user_id_param": str(user_id)}
         ).execute()
 
-        if not verification_result.data:
+        if not channel_verification_result.data:
             raise UserAuthError(error_detail_message="Channel not found or access denied")
 
-        return ChannelResponse(**verification_result.data[0])
+        return ChannelResponse(**channel_verification_result.data[0])
 
     except UserAuthError:
         raise
@@ -92,19 +92,14 @@ async def update_channel(supabase: AsyncClient, channel_id: UUID, user_id: UUID,
     print("update_channel service function runs")
     try:
         # First check if the channel belongs to a project owned by the user
-        verification_result = await supabase.rpc(
-            "get_channel_with_project_verification", {"channel_id_param": str(channel_id), "user_id_param": str(user_id)}
-        ).execute()
-
-        if not verification_result.data:
-            raise UserAuthError(error_detail_message="Channel not found or access denied")
+        channel = await get_channel_by_id(supabase, channel_id, user_id)
 
         # Get only non-None values to update
         update_data = {k: v for k, v in channel_update.model_dump().items() if v is not None}
 
         if not update_data:
             # If nothing to update, just return the current channel
-            return ChannelResponse(**verification_result.data[0])
+            return channel
 
         # Update the channel
         result = await supabase.table("channels").update(update_data).eq("id", str(channel_id)).execute()
@@ -127,13 +122,7 @@ async def update_channel(supabase: AsyncClient, channel_id: UUID, user_id: UUID,
 async def delete_channel(supabase: AsyncClient, channel_id: UUID, user_id: UUID) -> dict:
     print("delete_channel service function runs")
     try:
-        # First check if the channel belongs to a project owned by the user
-        verification_result = await supabase.rpc(
-            "get_channel_with_project_verification", {"channel_id_param": str(channel_id), "user_id_param": str(user_id)}
-        ).execute()
-
-        if not verification_result.data:
-            raise UserAuthError(error_detail_message="Channel not found or access denied")
+        await get_channel_by_id(supabase, channel_id, user_id)
 
         # Delete the channel
         result = await supabase.table("channels").delete().eq("id", str(channel_id)).execute()
