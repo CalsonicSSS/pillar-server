@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, Query, Path, Response
 from app.utils.app_states import get_async_supabase_client, get_async_httpx_client
 from app.utils.user_auth import verify_jwt_and_get_user_id
-from app.services.oauth_gmail_services import initialize_gmail_oauth, gmail_oauth_complete_callback
+from app.services.oauth_gmail_channel_services import initialize_gmail_oauth, gmail_oauth_complete_callback
 from uuid import UUID
 from supabase._async.client import AsyncClient
 from httpx import AsyncClient
@@ -9,6 +9,7 @@ from httpx import AsyncClient
 oauth_router = APIRouter(prefix="/oauth", tags=["oauth"])
 
 
+# so far the flow of gmail oauth process is conducted within a specific project upon a gmail channel creation action triggered by the user
 @oauth_router.post("/gmail/initialize/{project_id}")
 async def initialize_gmail_oauth_handler(
     project_id: str = Path(...),

@@ -6,17 +6,17 @@ from app.custom_error import DataBaseError, GeneralServerError, UserAuthError
 import traceback
 
 
-# async def create_channel(supabase: AsyncClient, channel_create: ChannelCreate, user_id: UUID) -> ChannelResponse:
+# async def create_channel(supabase: AsyncClient, new_channel_payload: ChannelCreate, user_id: UUID) -> ChannelResponse:
 #     print("create_channel service function runs")
 #     try:
 #         # First, verify the project belongs to the user
-#         project_result = await supabase.table("projects").select("id").eq("id", str(channel_create.project_id)).eq("user_id", str(user_id)).execute()
+#         project_result = await supabase.table("projects").select("id").eq("id", str(new_channel_payload.project_id)).eq("user_id", str(user_id)).execute()
 
 #         if not project_result.data:
 #             raise UserAuthError(error_detail_message="Project not found or access denied")
 
 #         # Create new channel
-#         channel_data = channel_create.model_dump()
+#         channel_data = new_channel_payload.model_dump()
 #         channel_data["is_connected"] = False  # Default to not connected
 #         channel_data["auth_data"] = None  # Initialize empty auth data
 

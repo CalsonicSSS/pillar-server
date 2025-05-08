@@ -6,7 +6,7 @@ from app.custom_error import DataBaseError, GeneralServerError, UserAuthError
 import traceback
 
 
-async def create_contact(supabase: AsyncClient, contact_create: ContactCreate, user_id: UUID) -> ContactResponse:
+async def create_contact(supabase: AsyncClient, new_contact_payload: ContactCreate, user_id: UUID) -> ContactResponse:
     """
     Create a new contact for a specific channel and project.
     Verifies that the channel belongs to a project owned by the user.
@@ -15,14 +15,15 @@ async def create_contact(supabase: AsyncClient, contact_create: ContactCreate, u
     try:
         # Verify channel belongs to user's project
         channel_verification_result = await supabase.rpc(
-            "get_channel_with_user_verification", {"channel_id_param": str(contact_create.channel_id), "user_id_param": str(user_id)}
+            "get_channel_with_user_verification", {"channel_id_param": str(new_contact_payload.channel_id), "user_id_param": str(user_id)}
         ).execute()
 
         if not channel_verification_result.data:
             raise UserAuthError(error_detail_message="Channel not found or access denied")
 
         # Create contact
-        contact_data = contact_create.model_dump()
+        contact_data = new_contact_payload.model_dump()
+        contact_data["channel_id"] = str(contact_data["channel_id"])
         result = await supabase.table("contacts").insert(contact_data).execute()
 
         if not result.data:

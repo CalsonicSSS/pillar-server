@@ -15,7 +15,7 @@ async def initial_fetch_and_store_messages_from_all_contacts(
     """
     Fetch and store initial messages for a channel's contacts from start_date to now.
     """
-    print("initial_fetch_and_store_messages_from_contacts function runs")
+    print("initial_fetch_and_store_messages_from_all_contacts function runs")
     try:
         # Verify channel belongs to user's project
         channel_verification_result = await supabase.rpc(
@@ -67,7 +67,7 @@ async def initial_fetch_and_store_messages_from_all_contacts(
                 httpx_client=httpx_client,
                 start_date=start_date_str,
                 end_date=end_date_str,
-                contact_emails=contact_identifier,
+                contact_email=contact_identifier,
                 max_total_results=1000,
             )
 
