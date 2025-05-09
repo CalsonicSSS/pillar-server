@@ -5,7 +5,7 @@ import asyncio
 import traceback
 from supabase._async.client import AsyncClient
 from app.custom_error import DataBaseError, GeneralServerError, UserAuthError
-from app.utils.gmail_service_new import fetch_full_gmail_messages_for_contact_in_date_range, transform_fetched_full_gmail_message
+from app.utils.gmail_msg_api_services import fetch_full_gmail_messages_for_contact_in_date_range, transform_fetched_full_gmail_message
 import httpx
 
 
