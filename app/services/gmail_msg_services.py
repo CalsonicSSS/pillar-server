@@ -5,7 +5,7 @@ import asyncio
 import traceback
 from supabase._async.client import AsyncClient
 from app.custom_error import DataBaseError, GeneralServerError, UserAuthError
-from app.utils.gmail_msg_api_services import fetch_target_contact_email_messages_in_date_range, transform_fetched_gmail_message
+from app.utils.gmail_service_new import fetch_full_gmail_messages_for_contact_in_date_range, transform_fetched_full_gmail_message
 import httpx
 
 
@@ -58,29 +58,28 @@ async def initial_fetch_and_store_messages_from_all_contacts(
 
             # Format dates for Gmail API (YYYY/MM/DD format)
             start_date_str = start_date.strftime("%Y/%m/%d")
-            end_date_str = datetime.now().strftime("%Y/%m/%d")
+            end_date_str = datetime.now()
 
-            # Fetch messages for this contact
+            # Fetch messages for this contact using new implementation
             print(f"Fetching messages for contact: {contact_identifier}")
-            contact_fetched_messages = await fetch_target_contact_email_messages_in_date_range(
+            full_gmail_messages = await fetch_full_gmail_messages_for_contact_in_date_range(
                 auth_data=auth_data,
-                httpx_client=httpx_client,
                 start_date=start_date_str,
                 end_date=end_date_str,
                 contact_email=contact_identifier,
-                max_total_results=1000,
+                max_results=1000,
             )
 
-            contact_fetched_messages_count = len(contact_fetched_messages)
+            contact_fetched_messages_count = len(full_gmail_messages)
             total_messages_fetched_count += contact_fetched_messages_count
             print(f"Found {contact_fetched_messages_count} messages for contact: {contact_identifier}")
 
             # Process and store each message
             saved_count = 0
-            for fetched_message in contact_fetched_messages:
+            for full_gmail_message in full_gmail_messages:
                 try:
-                    # Process Gmail message
-                    transformed_message_data = transform_fetched_gmail_message(fetched_message, channel_id, contact_id, user_email)
+                    # Process Gmail message using the new transformer
+                    transformed_message_data = transform_fetched_full_gmail_message(full_gmail_message, str(channel_id), str(contact_id), user_email)
 
                     # Check if message already exists
                     existing_stored_message = (
@@ -103,7 +102,7 @@ async def initial_fetch_and_store_messages_from_all_contacts(
 
                 except Exception as e:
                     # Log error but continue processing other messages
-                    print(f"Error processing message {fetched_message.get('id')}: {str(e)}")
+                    print(f"Error processing message {full_gmail_message.get('id')}: {str(e)}")
                     print(traceback.format_exc())
 
             total_messages_saved_count += saved_count
