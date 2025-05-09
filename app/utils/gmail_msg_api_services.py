@@ -1,380 +1,330 @@
-import httpx
-import traceback
-from typing import Dict, Any, List, Optional
-from app.custom_error import GeneralServerError
-from app.utils.gmail_oauth_helpers import check_and_refresh_access_token
-from datetime import datetime, timedelta, timezone
+from typing import Dict, List, Any, Optional
+from google.oauth2.credentials import Credentials
+from googleapiclient.discovery import build
+from datetime import datetime, timezone, timedelta
 import base64
-from uuid import UUID
-import json
-import uuid
-import asyncio
-from typing import Dict, List, Any
-import httpx
-import email.parser
+import traceback
+from app.core.config import app_config_settings
 
 
-# Google issues an access token that is specifically tied to that user's choosen account to be in pillar.
-# This will later store in the channel table in the auth_data column, specific to project and which is specific to the target user.
-# Here, we follow common practice to store each user's access token in a user-specific record such "channel".
-# Each user's data remains isolated and secure.
-# API requests are made on behalf of the correct user by using their specific access token (which is channel -> project -> user specific).
-
-
-async def get_raw_messages_api(
-    auth_data: Dict[str, Any],
-    httpx_client: httpx.AsyncClient,
-    query: str = None,
-    max_total_results: int = 1000,  # default limit for total
-    page_size: int = 50,  # default for page size (max allowed is 500) will be later used to set the maxResults query param per API call
-) -> List[Dict[str, Any]]:
-    """
-    List of Gmail messages that match a query with pagination support.
-
-    Args:
-        auth_data: The auth data for the Gmail channel
-        httpx_client: HTTPX client for API requests
-        query: Gmail search query (e.g., "after:2025-04-01")
-        max_total_results: Maximum total number of results to return
-        page_size: Number of results per page (max 100 for Gmail API)
-
-    Returns:
-        List of message metadata from Gmail API
-    """
-    print("get_raw_messages_api function runs")
-
+def create_gmail_service(auth_data: Dict[str, Any]):
+    """Create a Gmail API service instance from stored OAuth data."""
+    print("create_gmail_service runs...")
     try:
-        # Check and refresh token if needed
-        channel_auth_data = await check_and_refresh_access_token(auth_data, httpx_client)
-        access_token = channel_auth_data["tokens"]["access_token"]
+        tokens = auth_data.get("tokens", {})
 
-        all_fetched_raw_messages = []
-        page_token = None
-
-        # Paginate through results until we reach max_total_results or no more pages
-        while len(all_fetched_raw_messages) < max_total_results:
-            # maxResults query param, which dictates the maximum number of messages returned PER API call.
-            params = {"maxResults": min(page_size, max_total_results - len(all_fetched_raw_messages))}
-            if query:
-                params["q"] = query
-            if page_token:
-                params["pageToken"] = page_token
-
-            # Make API request to Gmail
-            # GET https://www.googleapis.com/gmail/v1/users/me/messages?q=in:sent after:2014/01/01 before:2014/02/01
-            # Gmail determines which is the user based on the OAuth 2.0 access token included in your API request's Authorization header.
-            # When use "me" in the API request, Gmail uses the access token to identify the user and access their mailbox accordingly (very important).
-            headers = {"Authorization": f"Bearer {access_token}"}
-            response = await httpx_client.get("https://www.googleapis.com/gmail/v1/users/me/messages", headers=headers, params=params)
-
-            response_data = response.json()
-
-            # Extract messages
-            raw_messages = response_data.get("messages", [])
-            if not raw_messages:
-                break  # No more messages to fetch
-
-            all_fetched_raw_messages.extend(raw_messages)
-
-            # Get next page token
-            page_token = response_data.get("nextPageToken")
-            if not page_token:
-                break  # No more pages
-
-            print(f"Fetched {len(raw_messages)} messages, total so far: {len(all_fetched_raw_messages)}")
-
-        print(f"Total messages fetched: {len(all_fetched_raw_messages)}")
-        return all_fetched_raw_messages
-
+        credentials = Credentials(
+            token=tokens.get("access_token"),
+            refresh_token=tokens.get("refresh_token"),
+            token_uri="https://oauth2.googleapis.com/token",
+            client_id=app_config_settings.GOOGLE_CLIENT_ID,
+            client_secret=app_config_settings.GOOGLE_CLIENT_SECRET,
+            scopes=["https://www.googleapis.com/auth/gmail.readonly", "https://www.googleapis.com/auth/gmail.send"],
+        )
+        service = build("gmail", "v1", credentials=credentials)
+        return service
     except Exception as e:
+        print(f"Error creating Gmail service: {str(e)}")
         print(traceback.format_exc())
-        raise GeneralServerError(error_detail_message="Failed to list Gmail messages")
+        return None
 
 
-# ---------------------------------------------------------------------------------------------------------------------------------------------
-
-
-async def get_full_messages_through_batch_api(
-    auth_data: Dict[str, Any],
-    httpx_client: httpx.AsyncClient,
-    all_message_ids: List[str],
-    format: str = "full",
-    batch_size: int = 50,  # Gmail API recommends max 50 requests per batch
+async def fetch_full_gmail_messages_for_contact_in_date_range(
+    auth_data: Dict[str, Any], start_date: str, end_date: datetime, contact_email: str, max_results: int = 1000
 ) -> List[Dict[str, Any]]:
     """
-    Get full details of multiple Gmail messages using true Gmail API batch requests.
-
-    This implements the multipart/mixed batch request mechanism as described in the
-    Gmail API documentation, which allows multiple API calls in a single HTTP request.
-
-    Args:
-        auth_data: The auth data for the Gmail channel
-        httpx_client: HTTPX client for API requests
-        all_message_ids: List of message IDs to fetch
-        format: Message format (full, minimal, raw, metadata)
-        batch_size: Number of requests per batch (max 100, recommended 50 or less)
-
-    Returns:
-        List of full message details from Gmail API
+    Fetch Gmail messages for a specific contact within a date range using batch requests.
     """
-    print("get_full_messages_through_batch_api function runs")
+    print("fetch_full_gmail_messages_for_contact_in_date_range runs...")
     try:
-        # Check and refresh token if needed
-        channel_auth_data = await check_and_refresh_access_token(auth_data, httpx_client)
-        access_token = channel_auth_data["tokens"]["access_token"]
-
-        all_full_messages = []
-        total_batches = (len(all_message_ids) + batch_size - 1) // batch_size  # Ceiling division
-
-        # Process in batches of batch_size
-        for batch_index in range(total_batches):
-            start_idx = batch_index * batch_size
-            end_idx = min(start_idx + batch_size, len(all_message_ids))
-            batch_ids = all_message_ids[start_idx:end_idx]
-
-            # Generate a unique boundary string
-            boundary = f"batch_boundary_{uuid.uuid4().hex}"
-
-            # Build multipart request body
-            body_parts = []
-
-            for i, msg_id in enumerate(batch_ids):
-                # Add boundary
-                body_parts.append(f"--{boundary}")
-
-                # Add part headers
-                body_parts.append("Content-Type: application/http")
-                body_parts.append(f"Content-ID: <request-{i}>")
-                body_parts.append("")  # Empty line after headers
-
-                # Add the HTTP request line and headers
-                body_parts.append(f"GET /gmail/v1/users/me/messages/{msg_id}?format={format} HTTP/1.1")
-                body_parts.append("Accept: application/json")
-                body_parts.append(f"Authorization: Bearer {access_token}")
-                body_parts.append("")  # Empty line to separate headers from body
-                body_parts.append("")  # Empty body for GET requests
-
-            # Close the multipart body
-            body_parts.append(f"--{boundary}--")
-
-            # Join all parts with CRLF
-            multipart_body = "\r\n".join(body_parts)
-
-            # Set up headers for the batch request
-            headers = {"Content-Type": f"multipart/mixed; boundary={boundary}", "Authorization": f"Bearer {access_token}"}
-
-            # Make the batch request
-            response = await httpx_client.post("https://www.googleapis.com/batch/gmail/v1", headers=headers, content=multipart_body.encode("utf-8"))
-
-            if response.status_code != 200:
-                print(f"Batch request failed: {response.status_code}")
-                print(f"Response: {response.text[:500]}...")  # Log first 500 chars of error response
-                continue
-
-            # Parse the multipart response using email.parser
-            # First, add a proper Content-Type header to help the parser
-            msg_content = f"Content-Type: {response.headers['Content-Type']}\r\n\r\n{response.text}"
-
-            # Parse the MIME message
-            parser = email.parser.Parser()
-            mime_message = parser.parsestr(msg_content)
-
-            # Process each part of the multipart response
-            for part in mime_message.get_payload():
-                # Check if this is an HTTP response part
-                if part.get_content_type() == "application/http":
-                    # Get the payload which contains the HTTP response
-                    http_response = part.get_payload()
-
-                    # Check status code more explicitly
-                    status_line = http_response.split("\n")[0]
-                    if "HTTP/1.1 200" not in status_line:
-                        if "HTTP/1.1 4" in status_line or "HTTP/1.1 5" in status_line:
-                            print(f"Error in batch part: {status_line}")
-                        continue
-
-                    # More robust approach to find JSON body
-                    parts = http_response.split("\r\n\r\n")
-                    if len(parts) >= 2:
-                        json_text = parts[-1]  # Last part after headers
-                        try:
-                            message = json.loads(json_text)
-                            all_full_messages.append(message)
-                        except json.JSONDecodeError as e:
-                            print(f"Failed to parse JSON: {e}")
-
-            print(f"Processed batch {batch_index + 1}/{total_batches}, retrieved {len(all_full_messages)} full messages so far in this batch")
-
-            # Small delay between batches to avoid rate limiting
-            if batch_index < total_batches - 1:
-                await asyncio.sleep(0.3)
-
-        print(f"Total full messages retrieved: {len(all_full_messages)}")
-        return all_full_messages
-
-    except Exception as e:
-        print(traceback.format_exc())
-        raise GeneralServerError(error_detail_message="Failed to batch get Gmail messages")
-
-
-# ---------------------------------------------------------------------------------------------------------------------------------------------
-
-
-async def fetch_target_contact_email_messages_in_date_range(
-    auth_data: Dict[str, Any],
-    httpx_client: httpx.AsyncClient,
-    start_date: str,
-    end_date: str,
-    contact_email: str,
-    max_total_results: int = 1000,
-) -> List[Dict[str, Any]]:
-    """
-    Fetch Gmail messages within a specific date range and from a specific contact.
-    Handles pagination and batch processing for efficiency.
-
-    Args:
-        auth_data: The auth data for the Gmail channel
-        httpx_client: HTTPX client for API requests
-        start_date: Start date in format YYYY/MM/DD
-        end_date: End date in format YYYY/MM/DD
-        contact_email: Optional contact email address to filter by
-        max_total_results: Maximum total number of results to return
-
-    Returns:
-        List of full messages from Gmail API
-    """
-    print("fetch_target_contact_email_messages_in_date_range function runs")
-    try:
-        # Build the Gmail search query
-        query_parts = [f"after:{start_date}", f"before:{end_date}"]
-
-        email_query = f"(from:{contact_email} OR to:{contact_email})"
-        query_parts.append(email_query)
-
-        query = " ".join(query_parts)
-        print("Gmail API url query:", query)
-
-        # Fetch message IDs with pagination
-        all_raw_messages = await get_raw_messages_api(auth_data, httpx_client, query, max_total_results=max_total_results)
-
-        if not all_raw_messages:
-            print("No messages found matching the criteria")
+        # Create Gmail service
+        service = create_gmail_service(auth_data)
+        if not service:
             return []
 
-        # Extract just the IDs for batch processing
-        all_message_ids = [msg["id"] for msg in all_raw_messages]
-        print(f"Found {len(all_message_ids)} messages, fetching full details")
+        next_day = (end_date + timedelta(days=1)).strftime("%Y/%m/%d")
+        print(f"Start date: {start_date}, End date: {next_day}")
 
-        # Fetch full message details in batches
-        all_full_messages = await get_full_messages_through_batch_api(auth_data, httpx_client, all_message_ids)
-        print("all_full_messages:", all_full_messages)
+        # Build search query
+        # as tested, after is inclusive and before is exclusive, so we have to do next day +1
+        query = f"(from:{contact_email} OR to:{contact_email}) after:{start_date} before:{next_day}"
+        print(f"Query: {query}")
 
-        return all_full_messages
+        # Get message IDs
+        response = service.users().messages().list(userId="me", q=query, maxResults=min(max_results, 100)).execute()
+        print(f"First raw fetch Response: {response}")
+
+        fetched_raw_messages = response.get("messages", [])
+        next_page_token = response.get("nextPageToken")
+
+        # Handle pagination if needed
+        while next_page_token and len(fetched_raw_messages) < max_results:
+            page_response = (
+                service.users()
+                .messages()
+                .list(userId="me", q=query, pageToken=next_page_token, maxResults=min(max_results - len(fetched_raw_messages), 100))
+                .execute()
+            )
+
+            fetched_raw_messages.extend(page_response.get("messages", []))
+            next_page_token = page_response.get("nextPageToken")
+
+            if len(fetched_raw_messages) >= max_results:
+                break
+
+        print(f"Total raw message fetched: {len(fetched_raw_messages)}")
+
+        if not fetched_raw_messages:
+            return []
+
+        # Fetch full messages using batch requests
+        full_messages = []
+        batch_size = 50  # Google recommends 50-100 requests per batch
+
+        # Process messages in batches
+        for i in range(0, len(fetched_raw_messages), batch_size):
+            raw_messages_in_current_batch = fetched_raw_messages[i : i + batch_size]
+            batch_results = {}
+
+            # Create a batch request
+            batch = service.new_batch_http_request()
+
+            # Add callback function to process each response
+            def callback_factory(message_id):
+                def callback(request_id, response, exception):
+                    if exception:
+                        print(f"Error fetching message {message_id}: {exception}")
+                    else:
+                        batch_results[message_id] = response
+
+                return callback
+
+            # Add each message to the batch
+            for msg in raw_messages_in_current_batch:
+                msg_id = msg["id"]
+                batch.add(service.users().messages().get(userId="me", id=msg_id, format="full"), callback=callback_factory(msg_id))
+
+            # Execute the batch request for all raw messages within the current batch
+            batch.execute()
+
+            # Add results to full_messages
+            for msg in raw_messages_in_current_batch:
+                msg_id = msg["id"]
+                if msg_id in batch_results:
+                    full_messages.append(batch_results[msg_id])
+
+            print(f"Processed batch: {i//batch_size + 1}, messages: {len(batch_results)}")
+
+        print(f"Total full messages fetched: {len(full_messages)}")
+        print("full_messages: ", full_messages)
+        return full_messages
 
     except Exception as e:
+        print(f"Error fetching messages: {str(e)}")
         print(traceback.format_exc())
-        raise GeneralServerError(error_detail_message="Failed to fetch Gmail messages in date range")
+        return []
 
 
-# ---------------------------------------------------------------------------------------------------------------------------------------------
+# -------------------------------------------------------------------------------------------------------------------------------------
 
 
-def transform_fetched_gmail_message(gmail_message: Dict[str, Any], channel_id: UUID, contact_id: UUID, user_email: str) -> Dict[str, Any]:
+def get_email_body(fetched_full_gmail_message, supabase_message_data):
+    """
+    Extract email body from Gmail message with support for nested structures.
+    Handles various MIME types and nested multipart messages.
+    Strips out quoted previous messages for cleaner display.
+    """
+
+    # Helper function to clean content by removing quoted text
+    def clean_email_content(content, is_html=False):
+        if not content:
+            return content
+
+        if is_html:
+            # Handle HTML content
+            import re
+
+            # Remove Gmail's quoted content (blockquotes)
+            content = re.sub(r"<blockquote.*?>.*?</blockquote>", "", content, flags=re.DOTALL)
+
+            # Remove Gmail quote containers
+            content = re.sub(r'<div class=["\']gmail_quote["\'].*?>.*?</div>', "", content, flags=re.DOTALL)
+            content = re.sub(r'<div class=["\']gmail_quote.*?>.*?</div>', "", content, flags=re.DOTALL)
+
+            # Remove reply headers
+            content = re.sub(r'<div class=["\']reply.*?>.*?</div>', "", content, flags=re.DOTALL)
+            content = re.sub(r"On.*?wrote:", "", content, flags=re.DOTALL | re.IGNORECASE)
+
+            # Clean up any empty divs or excessive spacing that might remain
+            content = re.sub(r"<div>\s*</div>", "", content)
+            content = re.sub(r"<br>\s*<br>\s*<br>", "<br><br>", content)
+
+            return content.strip()
+        else:
+            # Handle plain text content
+            import re
+
+            # Remove lines after common reply markers
+            markers = [
+                r"On .* wrote:",
+                r"-+\s*Original Message\s*-+",
+                r"-+\s*Forwarded Message\s*-+",
+                r"^From:.*$\n^Sent:.*$\n^To:",
+                r"^>.*$",  # Basic quote markers (lines starting with >)
+                r"^On.*at.*$",  # Common datetime format in replies
+            ]
+
+            for marker in markers:
+                pattern = re.compile(marker, re.IGNORECASE | re.MULTILINE)
+                match = pattern.search(content)
+                if match:
+                    content = content[: match.start()].strip()
+
+            # Remove extra blank lines at the end
+            content = re.sub(r"\n+$", "", content)
+            return content.strip()
+
+    # Initialize a function to recursively process message parts
+    def process_parts(parts, message_data):
+        if not parts:
+            return
+
+        for part in parts:
+            mime_type = part.get("mimeType", "")
+
+            # Handle nested multipart messages
+            if mime_type.startswith("multipart/"):
+                nested_parts = part.get("parts", [])
+                process_parts(nested_parts, message_data)
+                continue
+
+            # Get part body data
+            body_data = part.get("body", {}).get("data")
+            if not body_data:
+                continue
+
+            try:
+                # Decode the base64 data
+                decoded_data = base64.urlsafe_b64decode(body_data.encode("UTF-8"))
+                decoded_str = decoded_data.decode("utf-8")
+
+                # Store based on MIME type
+                if mime_type == "text/plain" and not message_data["body_text"]:
+                    message_data["body_text"] = decoded_str
+                elif mime_type == "text/html" and not message_data["body_html"]:
+                    message_data["body_html"] = decoded_str
+            except Exception as e:
+                print(f"Error decoding part with MIME type {mime_type}: {str(e)}")
+
+    # Handle single-part messages (no parts array)
+    payload = fetched_full_gmail_message.get("payload", {})
+
+    if "parts" not in payload:
+        mime_type = payload.get("mimeType", "")
+        body_data = payload.get("body", {}).get("data")
+
+        if body_data:
+            try:
+                decoded_data = base64.urlsafe_b64decode(body_data.encode("UTF-8"))
+                decoded_str = decoded_data.decode("utf-8")
+
+                if "text/plain" in mime_type:
+                    supabase_message_data["body_text"] = decoded_str
+                elif "text/html" in mime_type:
+                    supabase_message_data["body_html"] = decoded_str
+                else:
+                    # Default to text for unknown types
+                    supabase_message_data["body_text"] = decoded_str
+            except Exception as e:
+                print(f"Error decoding single-part message: {str(e)}")
+    else:
+        # Process multi-part messages recursively
+        process_parts(payload.get("parts", []), supabase_message_data)
+
+    # Clean the extracted content to remove quoted text
+    if supabase_message_data["body_html"]:
+        supabase_message_data["body_html"] = clean_email_content(supabase_message_data["body_html"], is_html=True)
+
+    if supabase_message_data["body_text"]:
+        supabase_message_data["body_text"] = clean_email_content(supabase_message_data["body_text"], is_html=False)
+
+
+# -------------------------------------------------------------------------------------------------------------------------------------
+
+
+def transform_fetched_full_gmail_message(
+    fetched_full_gmail_message: Dict[str, Any], channel_id: str, contact_id: str, user_email: str
+) -> Dict[str, Any]:
     """
     Process a Gmail message into our application's format.
 
     Args:
-        gmail_message: Raw Gmail API message
+        gmail_message: Gmail API message object
         channel_id: Channel ID
         contact_id: Contact ID
-        user_email: The user's email address to determine message direction
+        user_email: User's email to determine message direction
 
     Returns:
-        Processed message data ready for database storage
+        Processed message data for database storage
     """
+    print("transform_fetched_full_gmail_message runs...")
     # Default message data
-    print("transform_fetched_gmail_message function runs")
-    message_data = {
-        "platform_message_id": gmail_message["id"],
-        "channel_id": str(channel_id),
-        "contact_id": str(contact_id),
-        "thread_id": gmail_message.get("threadId"),
+    supabase_message_data = {
+        "platform_message_id": fetched_full_gmail_message["id"],
+        "channel_id": channel_id,
+        "contact_id": contact_id,
+        "thread_id": fetched_full_gmail_message.get("threadId"),
         "sender_email": "",
         "recipient_emails": [],
         "subject": "",
         "body_text": "",
         "body_html": "",
-        "registered_at": datetime.now().isoformat(),  # Default
+        "registered_at": datetime.now().isoformat(),
         "is_read": False,
         "is_from_contact": False,
     }
 
-    # Use internalDate for registered_at (convert from milliseconds to datetime)
-    if "internalDate" in gmail_message:
-        try:
-            # internalDate is in milliseconds since epoch
-            timestamp_ms = int(gmail_message["internalDate"])
-            date_obj = datetime.fromtimestamp(timestamp_ms / 1000, tz=timezone.utc)
-            message_data["registered_at"] = date_obj.isoformat()
-        except Exception:
-            # If parsing fails, keep the default
-            pass
+    # Process internal date
+    if "internalDate" in fetched_full_gmail_message:
+        # internalDate is in milliseconds since epoch
+        timestamp_ms = int(fetched_full_gmail_message["internalDate"])
+        date_obj = datetime.fromtimestamp(timestamp_ms / 1000, tz=timezone.utc)
+        supabase_message_data["registered_at"] = date_obj.isoformat()
 
-    # Extract headers
+    # Process headers
     headers = {}
-    for header in gmail_message.get("payload", {}).get("headers", []):
-        headers[header.get("name", "").lower()] = header.get("value", "")
+    for header in fetched_full_gmail_message.get("payload", {}).get("headers", []):
+        name = header.get("name", "").lower()
+        value = header.get("value", "")
+        headers[name] = value
 
-    # Get sender email
+    # Get sender
     if "from" in headers:
-        # Extract email from "From" header (e.g., "John Doe <john@example.com>")
-        from_parts = headers["from"].split("<")
-        if len(from_parts) > 1:
-            message_data["sender_email"] = from_parts[1].strip(">")
+        from_value = headers["from"]
+        if "<" in from_value:
+            supabase_message_data["sender_email"] = from_value.split("<")[1].strip(">")
         else:
-            message_data["sender_email"] = headers["from"]
+            supabase_message_data["sender_email"] = from_value
 
-    # Determine if message is from contact or from user
-    message_data["is_from_contact"] = message_data["sender_email"] != user_email
+    # Determine if message is from contact
+    supabase_message_data["is_from_contact"] = supabase_message_data["sender_email"].lower() != user_email.lower()
 
-    # Get recipient emails
+    # Get recipients
     if "to" in headers:
-        # Split multiple recipients and extract emails
-        recipients = headers["to"].split(",")
+        to_value = headers["to"]
+        recipients = to_value.split(",")
         for recipient in recipients:
             recipient = recipient.strip()
             if "<" in recipient:
                 email = recipient.split("<")[1].strip(">")
             else:
                 email = recipient
-            message_data["recipient_emails"].append(email)
+            supabase_message_data["recipient_emails"].append(email)
 
     # Get subject
-    if "subject" in headers:
-        message_data["subject"] = headers["subject"]
+    supabase_message_data["subject"] = headers.get("subject", "")
 
-    # Get message body
-    parts = gmail_message.get("payload", {}).get("parts", [])
-    if parts:
-        for part in parts:
-            mimeType = part.get("mimeType", "")
-            if mimeType == "text/plain" and "body" in part and "data" in part["body"]:
-                data = part["body"]["data"].replace("-", "+").replace("_", "/")
-                message_data["body_text"] = base64.b64decode(data).decode("utf-8")
-            elif mimeType == "text/html" and "body" in part and "data" in part["body"]:
-                data = part["body"]["data"].replace("-", "+").replace("_", "/")
-                message_data["body_html"] = base64.b64decode(data).decode("utf-8")
+    # Start extraction with the message payload
+    get_email_body(fetched_full_gmail_message, supabase_message_data)
 
-    # Handle case where payload doesn't have parts but has body directly (single-part messages)
-    if not parts and "body" in gmail_message.get("payload", {}) and "data" in gmail_message["payload"]["body"]:
-        data = gmail_message["payload"]["body"]["data"].replace("-", "+").replace("_", "/")
-
-        # Determine the MIME type from the payload
-        mimeType = gmail_message["payload"].get("mimeType", "text/plain")
-
-        if "text/plain" in mimeType:
-            message_data["body_text"] = base64.b64decode(data).decode("utf-8")
-        elif "text/html" in mimeType:
-            message_data["body_html"] = base64.b64decode(data).decode("utf-8")
-
-    return message_data
+    return supabase_message_data
