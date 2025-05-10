@@ -13,7 +13,6 @@ class ChannelCreate(ChannelBase):
 
 
 class ChannelUpdate(BaseModel):
-    auth_data: Optional[Dict[str, Any]] = None
     is_connected: Optional[bool] = None
 
 

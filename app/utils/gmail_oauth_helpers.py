@@ -10,7 +10,7 @@ from app.utils.app_states import get_async_httpx_client
 
 
 # This function creates the URL that the frontend will navigate to google account directly for authentication
-def generate_gmail_auth_url(channel_id: str) -> str:
+def generate_gmail_oauth_url(channel_id: str) -> str:
     """
     Generate a Google OAuth authorization URL for Gmail integration.
 
@@ -81,51 +81,6 @@ async def exchange_auth_code_for_tokens(auth_code: str, httpx_client: httpx.Asyn
 # ------------------------------------------------------------------------------------------------------------------------
 
 
-# This is similar to exchange_code_for_tokens but uses the refresh token instead of the authorization code to get a new access token
-# access token (short-lived, ~1 hour) and refresh token (long-lived). When access token expires, we use refresh token to get a new access token
-async def refresh_access_token(refresh_token: str, httpx_client: httpx.AsyncClient = Depends(get_async_httpx_client)) -> Dict[str, Any]:
-    """
-    Get a new access token using a refresh token.
-
-    Args:
-        refresh_token: The refresh token stored from the original OAuth flow
-
-    Returns:
-        A dictionary containing the new access token and related information
-    """
-    try:
-        # this is a standard Google OAuth endpoint that won't change
-        access_token_exchange_url = "https://oauth2.googleapis.com/token"
-        payload = {
-            "client_id": app_config_settings.GOOGLE_CLIENT_ID,
-            "client_secret": app_config_settings.GOOGLE_CLIENT_SECRET,
-            "refresh_token": refresh_token,
-            "grant_type": "refresh_token",
-        }
-
-        response = await httpx_client.post(access_token_exchange_url, data=payload)
-
-        exchanged_token_data = response.json()
-        print("exchanged_token_data:", exchanged_token_data)
-
-        # Add expiration timestamp
-        if "expires_in" in exchanged_token_data:
-            exchanged_token_data["expiry_timestamp"] = int(time.time()) + exchanged_token_data["expires_in"]
-
-        # Keep the existing refresh token if the response doesn't include a new one
-        if "refresh_token" not in exchanged_token_data:
-            exchanged_token_data["refresh_token"] = refresh_token
-
-        return exchanged_token_data
-
-    except Exception as e:
-        print(traceback.format_exc())
-        raise GeneralServerError(error_detail_message="Failed to refresh access token")
-
-
-# ------------------------------------------------------------------------------------------------------------------------
-
-
 async def get_gmail_user_info(access_token: str, httpx_client: httpx.AsyncClient = Depends(get_async_httpx_client)) -> Dict[str, Any]:
     """
     Get Gmail user profile information using the access token.
@@ -159,51 +114,96 @@ async def get_gmail_user_info(access_token: str, httpx_client: httpx.AsyncClient
 # ------------------------------------------------------------------------------------------------------------------------
 
 
-# This function checks if an access token needs refreshing
-# get sec int of current time since epoch + buffer time (to avoid tokens expiring during API calls) and compares it to the expiry timestamp of the token
-# Returns a simple status object indicating if we need to refresh
-def get_current_token_status(auth_data: Dict[str, Any]) -> Dict[str, Any]:
-    """
-    Check if the current access token is valid or needs refreshing.
+# # This is similar to exchange_code_for_tokens but uses the refresh token instead of the authorization code to get a new access token
+# # access token (short-lived, ~1 hour) and refresh token (long-lived). When access token expires, we use refresh token to get a new access token
+# async def refresh_access_token(refresh_token: str, httpx_client: httpx.AsyncClient = Depends(get_async_httpx_client)) -> Dict[str, Any]:
+#     """
+#     Get a new access token using a refresh token.
 
-    Args:
-        auth_data: The authentication data stored for the channel
+#     Args:
+#         refresh_token: The refresh token stored from the original OAuth flow
 
-    Returns:
-        Updated auth_data if refreshed, or original if still valid
-    """
+#     Returns:
+#         A dictionary containing the new access token and related information
+#     """
+#     try:
+#         # this is a standard Google OAuth endpoint that won't change
+#         access_token_exchange_url = "https://oauth2.googleapis.com/token"
+#         payload = {
+#             "client_id": app_config_settings.GOOGLE_CLIENT_ID,
+#             "client_secret": app_config_settings.GOOGLE_CLIENT_SECRET,
+#             "refresh_token": refresh_token,
+#             "grant_type": "refresh_token",
+#         }
 
-    current_time = int(time.time())
-    buffer_time = 300  # 5 minutes buffer
+#         response = await httpx_client.post(access_token_exchange_url, data=payload)
 
-    if "expiry_timestamp" not in auth_data or current_time + buffer_time >= auth_data["expiry_timestamp"]:
-        return {"needs_refresh": True}
+#         exchanged_token_data = response.json()
+#         print("exchanged_token_data:", exchanged_token_data)
 
-    return {"needs_refresh": False}
+#         # Add expiration timestamp
+#         if "expires_in" in exchanged_token_data:
+#             exchanged_token_data["expiry_timestamp"] = int(time.time()) + exchanged_token_data["expires_in"]
+
+#         # Keep the existing refresh token if the response doesn't include a new one
+#         if "refresh_token" not in exchanged_token_data:
+#             exchanged_token_data["refresh_token"] = refresh_token
+
+#         return exchanged_token_data
+
+#     except Exception as e:
+#         print(traceback.format_exc())
+#         raise GeneralServerError(error_detail_message="Failed to refresh access token")
 
 
 # ------------------------------------------------------------------------------------------------------------------------
 
 
-async def check_and_refresh_access_token(auth_data: Dict[str, Any], httpx_client: httpx.AsyncClient) -> Dict[str, Any]:
-    """
-    Check if the access token needs to be refreshed and refresh it if necessary.
+# # This function checks if an access token needs refreshing
+# # get sec int of current time since epoch + buffer time (to avoid tokens expiring during API calls) and compares it to the expiry timestamp of the token
+# # Returns a simple status object indicating if we need to refresh
+# def get_current_token_status(auth_data: Dict[str, Any]) -> Dict[str, Any]:
+#     """
+#     Check if the current access token is valid or needs refreshing.
 
-    Args:
-        auth_data: The current auth data for the channel
-        httpx_client: HTTPX client for API requests
+#     Args:
+#         auth_data: The authentication data stored for the channel
 
-    Returns:
-        Updated auth data with refreshed token if needed
-    """
-    token_status = get_current_token_status(auth_data["tokens"])
+#     Returns:
+#         Updated auth_data if refreshed, or original if still valid
+#     """
 
-    if token_status["needs_refresh"]:
-        # Refresh the token
-        refresh_token = auth_data["tokens"]["refresh_token"]
-        new_tokens = await refresh_access_token(refresh_token, httpx_client)
+#     current_time = int(time.time())
+#     buffer_time = 300  # 5 minutes buffer
 
-        # Update the auth data with new tokens (update is way more efficient than reassigning)
-        auth_data["tokens"].update(new_tokens)
+#     if "expiry_timestamp" not in auth_data or current_time + buffer_time >= auth_data["expiry_timestamp"]:
+#         return {"needs_refresh": True}
 
-    return auth_data
+#     return {"needs_refresh": False}
+
+
+# ------------------------------------------------------------------------------------------------------------------------
+
+
+# async def check_and_refresh_access_token(auth_data: Dict[str, Any], httpx_client: httpx.AsyncClient) -> Dict[str, Any]:
+#     """
+#     Check if the access token needs to be refreshed and refresh it if necessary.
+
+#     Args:
+#         auth_data: The current auth data for the channel
+#         httpx_client: HTTPX client for API requests
+
+#     Returns:
+#         Updated auth data with refreshed token if needed
+#     """
+#     token_status = get_current_token_status(auth_data["tokens"])
+
+#     if token_status["needs_refresh"]:
+#         # Refresh the token
+#         refresh_token = auth_data["tokens"]["refresh_token"]
+#         new_tokens = await refresh_access_token(refresh_token, httpx_client)
+
+#         # Update the auth data with new tokens (update is way more efficient than reassigning)
+#         auth_data["tokens"].update(new_tokens)
+
+#     return auth_data

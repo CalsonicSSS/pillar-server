@@ -7,11 +7,11 @@ import traceback
 from app.core.config import app_config_settings
 
 
-def create_gmail_service(auth_data: Dict[str, Any]):
+def create_gmail_service(oauth_data: Dict[str, Any]):
     """Create a Gmail API service instance from stored OAuth data."""
     print("create_gmail_service runs...")
     try:
-        tokens = auth_data.get("tokens", {})
+        tokens = oauth_data.get("tokens", {})
 
         credentials = Credentials(
             token=tokens.get("access_token"),
@@ -30,7 +30,7 @@ def create_gmail_service(auth_data: Dict[str, Any]):
 
 
 async def fetch_full_gmail_messages_for_contact_in_date_range(
-    auth_data: Dict[str, Any], start_date: str, end_date: datetime, contact_email: str, max_results: int = 1000
+    oauth_data: Dict[str, Any], start_date: str, end_date: datetime, contact_email: str, max_results: int = 1000
 ) -> List[Dict[str, Any]]:
     """
     Fetch Gmail messages for a specific contact within a date range using batch requests.
@@ -38,7 +38,7 @@ async def fetch_full_gmail_messages_for_contact_in_date_range(
     print("fetch_full_gmail_messages_for_contact_in_date_range runs...")
     try:
         # Create Gmail service
-        service = create_gmail_service(auth_data)
+        service = create_gmail_service(oauth_data)
         if not service:
             return []
 

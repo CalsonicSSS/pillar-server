@@ -7,8 +7,8 @@ from supabase._async.client import create_client
 from app.routes.project_routes import project_router
 from app.routes.webhook_routes import webhook_router
 from app.routes.channel_routes import channel_router
-from app.routes.oauth_gmail_channel_routes import oauth_router
-from app.routes.message_routes import message_router
+from app.routes.gmail_oauth_channel_routes import oauth_router
+from app.routes.gmail_msg_routes import message_router
 from app.routes.contact_routes import contact_router
 
 

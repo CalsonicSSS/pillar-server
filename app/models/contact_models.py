@@ -6,7 +6,8 @@ from uuid import UUID
 
 class ContactBase(BaseModel):
     name: Optional[str] = None
-    account_identifier: str  # More generic than "email" - supports multiple channel types
+    account_identifier: str
+    channel_type: str
 
 
 class ContactCreate(ContactBase):

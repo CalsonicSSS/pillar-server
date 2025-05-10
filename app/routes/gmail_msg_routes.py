@@ -16,7 +16,7 @@ from app.utils.user_auth import verify_jwt_and_get_user_id
 message_router = APIRouter(prefix="/messages", tags=["messages"])
 
 
-@message_router.post("/fetch", response_model=Dict[str, Any])
+@message_router.post("/gmail/fetch", response_model=Dict[str, Any])
 async def fetch_initial_messages_handler(
     channel_id: UUID = Body(...),
     contact_ids: List[UUID] = Body(...),
@@ -25,11 +25,11 @@ async def fetch_initial_messages_handler(
     httpx_client: AsyncClient = Depends(get_async_httpx_client),
     user_id: UUID = Depends(verify_jwt_and_get_user_id),
 ):
-    print("/messages/fetch POST route reached")
+    print("/gmail/messages/fetch POST route reached")
     return await initial_fetch_and_store_messages_from_all_contacts(supabase, httpx_client, channel_id, contact_ids, start_date, user_id)
 
 
-@message_router.get("/", response_model=List[Dict[str, Any]])
+@message_router.get("/gmail/", response_model=List[Dict[str, Any]])
 async def get_messages_handler(
     channel_id: Optional[UUID] = Query(None),
     contact_id: Optional[UUID] = Query(None),
@@ -42,7 +42,7 @@ async def get_messages_handler(
     supabase: AsyncClient = Depends(get_async_supabase_client),
     user_id: UUID = Depends(verify_jwt_and_get_user_id),
 ):
-    print("/messages GET route reached")
+    print("/gmail/messages GET route reached")
     filter_params = {
         "channel_id": channel_id,
         "contact_id": contact_id,
@@ -56,7 +56,7 @@ async def get_messages_handler(
     return await get_messages_with_filters(supabase, user_id, filter_params)
 
 
-@message_router.get("/{message_id}", response_model=Dict[str, Any])
+@message_router.get("/gmail/{message_id}", response_model=Dict[str, Any])
 async def get_message_by_id_handler(
     message_id: UUID = Path(...),
     supabase: AsyncClient = Depends(get_async_supabase_client),
@@ -66,7 +66,7 @@ async def get_message_by_id_handler(
     return await get_message_by_id(supabase, message_id, user_id)
 
 
-@message_router.patch("/{message_id}/read", response_model=Dict[str, Any])
+@message_router.patch("/gmail/{message_id}/read", response_model=Dict[str, Any])
 async def mark_message_as_read_handler(
     message_id: UUID = Path(...),
     supabase: AsyncClient = Depends(get_async_supabase_client),
