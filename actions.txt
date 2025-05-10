@@ -41,7 +41,7 @@ build command: pip install -r requirements.txt
 
 start command: uvicorn app.main:app --host 0.0.0.0 --port $PORT
 
-add to Environment Variables "PORT: 8000"
+add all Environment Variables, and "PORT: 8000"
 
 --------------------------------------------------
 
