@@ -1,32 +1,9 @@
 from typing import Dict, List, Any, Optional
-from google.oauth2.credentials import Credentials
-from googleapiclient.discovery import build
 from datetime import datetime, timezone, timedelta
 import base64
 import traceback
-from app.core.config import app_config_settings
-
-
-def create_gmail_service(oauth_data: Dict[str, Any]):
-    """Create a Gmail API service instance from stored OAuth data."""
-    print("create_gmail_service runs...")
-    try:
-        tokens = oauth_data.get("tokens", {})
-
-        credentials = Credentials(
-            token=tokens.get("access_token"),
-            refresh_token=tokens.get("refresh_token"),
-            token_uri="https://oauth2.googleapis.com/token",
-            client_id=app_config_settings.GOOGLE_CLIENT_ID,
-            client_secret=app_config_settings.GOOGLE_CLIENT_SECRET,
-            scopes=["https://www.googleapis.com/auth/gmail.readonly", "https://www.googleapis.com/auth/gmail.send"],
-        )
-        service = build("gmail", "v1", credentials=credentials)
-        return service
-    except Exception as e:
-        print(f"Error creating Gmail service: {str(e)}")
-        print(traceback.format_exc())
-        return None
+from app.utils.gmail_oauth_helpers import create_gmail_service
+from app.custom_error import UserOauthError
 
 
 async def fetch_full_gmail_messages_for_contact_in_date_range(
@@ -119,10 +96,13 @@ async def fetch_full_gmail_messages_for_contact_in_date_range(
         print("full_messages: ", full_messages)
         return full_messages
 
+    except UserOauthError:
+        raise
+
     except Exception as e:
         print(f"Error fetching messages: {str(e)}")
         print(traceback.format_exc())
-        return []
+        raise
 
 
 # -------------------------------------------------------------------------------------------------------------------------------------
@@ -215,6 +195,7 @@ def get_email_body(fetched_full_gmail_message, supabase_message_data):
                     message_data["body_html"] = decoded_str
             except Exception as e:
                 print(f"Error decoding part with MIME type {mime_type}: {str(e)}")
+                raise
 
     # Handle single-part messages (no parts array)
     payload = fetched_full_gmail_message.get("payload", {})
@@ -237,6 +218,7 @@ def get_email_body(fetched_full_gmail_message, supabase_message_data):
                     supabase_message_data["body_text"] = decoded_str
             except Exception as e:
                 print(f"Error decoding single-part message: {str(e)}")
+                raise
     else:
         # Process multi-part messages recursively
         process_parts(payload.get("parts", []), supabase_message_data)

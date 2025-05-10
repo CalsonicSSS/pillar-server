@@ -3,7 +3,7 @@ from typing import List, Dict, Any, Optional
 from uuid import UUID
 from datetime import datetime
 from app.services.gmail_msg_services import (
-    initial_fetch_and_store_messages_from_all_contacts,
+    initial_fetch_and_store_gmail_messages_from_all_contacts,
     get_messages_with_filters,
     get_message_by_id,
     mark_message_as_read,
@@ -26,7 +26,7 @@ async def fetch_initial_messages_handler(
     user_id: UUID = Depends(verify_jwt_and_get_user_id),
 ):
     print("/gmail/messages/fetch POST route reached")
-    return await initial_fetch_and_store_messages_from_all_contacts(supabase, httpx_client, channel_id, contact_ids, start_date, user_id)
+    return await initial_fetch_and_store_gmail_messages_from_all_contacts(supabase, httpx_client, channel_id, contact_ids, start_date, user_id)
 
 
 @message_router.get("/gmail/", response_model=List[Dict[str, Any]])

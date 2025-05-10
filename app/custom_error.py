@@ -19,6 +19,11 @@ class UserAuthError(HTTPException):
         super().__init__(status_code=401, detail=error_detail_message)
 
 
+class UserOauthError(HTTPException):
+    def __init__(self, error_detail_message: str):
+        super().__init__(status_code=401, detail=error_detail_message)
+
+
 class SecurityError(HTTPException):
     def __init__(self, error_detail_message: str):
         super().__init__(status_code=400, detail=error_detail_message)

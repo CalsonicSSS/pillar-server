@@ -1,10 +1,11 @@
 from fastapi import APIRouter, Depends, Query, Path, Response
 from app.utils.app_states import get_async_supabase_client, get_async_httpx_client
 from app.utils.user_auth import verify_jwt_and_get_user_id
-from app.services.gmail_oauth_channel_services import initialize_gmail_channel_create_and_oauth, gmail_oauth_complete_callback
+from app.services.gmail_oauth_channel_services import initialize_gmail_channel_create_and_oauth, gmail_oauth_complete_callback, gmail_reoauth_process
 from uuid import UUID
 from supabase._async.client import AsyncClient
 from httpx import AsyncClient
+
 
 oauth_router = APIRouter(prefix="/oauth", tags=["oauth"])
 
@@ -18,6 +19,19 @@ async def initialize_gmail_channel_create_and_oauth_handler(
 ):
     print("/oauth/gmail/initialize POST route reached")
     return await initialize_gmail_channel_create_and_oauth(supabase, project_id, user_id)
+
+
+@oauth_router.post("/gmail/refresh")
+async def refresh_gmail_oauth_handler(
+    supabase: AsyncClient = Depends(get_async_supabase_client),
+    user_id: UUID = Depends(verify_jwt_and_get_user_id),
+):
+    """
+    Generate a new OAuth URL when any credentials and refresh token are invalidated.
+    Clears existing invalid credentials.
+    """
+    print("/oauth/gmail/refresh POST route reached")
+    return await gmail_reoauth_process(supabase, user_id)
 
 
 @oauth_router.get("/gmail/callback")

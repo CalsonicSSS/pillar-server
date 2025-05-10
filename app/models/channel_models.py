@@ -5,7 +5,7 @@ from uuid import UUID
 
 
 class ChannelBase(BaseModel):
-    channel_type: Literal["Gmail"]  # For MVP, only Gmail is supported
+    channel_type: str
 
 
 class ChannelCreate(ChannelBase):

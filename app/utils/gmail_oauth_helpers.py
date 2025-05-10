@@ -7,15 +7,40 @@ import time
 import httpx
 from fastapi import Depends
 from app.utils.app_states import get_async_httpx_client
+from google.oauth2.credentials import Credentials
+from googleapiclient.discovery import build
+from app.custom_error import UserOauthError
+
+
+def create_gmail_service(oauth_data: Dict[str, Any]):
+    """Create a Gmail API service instance from stored OAuth data."""
+    print("create_gmail_service runs...")
+    try:
+        tokens = oauth_data.get("tokens", {})
+
+        credentials = Credentials(
+            token=tokens.get("access_token"),
+            refresh_token=tokens.get("refresh_token"),
+            token_uri="https://oauth2.googleapis.com/token",
+            client_id=app_config_settings.GOOGLE_CLIENT_ID,
+            client_secret=app_config_settings.GOOGLE_CLIENT_SECRET,
+            scopes=["https://www.googleapis.com/auth/gmail.readonly", "https://www.googleapis.com/auth/gmail.send"],
+        )
+        service = build("gmail", "v1", credentials=credentials)
+        return service
+    except Exception as e:
+        print(f"Error creating Gmail service: {str(e)}")
+        print(traceback.format_exc())
+        raise UserOauthError(error_detail_message="Error creating Gmail service")
 
 
 # This function creates the URL that the frontend will navigate to google account directly for authentication
-def generate_gmail_oauth_url(channel_id: str) -> str:
+def generate_gmail_oauth_url(state: str) -> str:
     """
     Generate a Google OAuth authorization URL for Gmail integration.
 
     Args:
-        channel_id: The ID of the channel being connected (used in state parameter)
+        state: additional state used in state parameter (e.g can be channel_id)
 
     Returns:
         The authorization URL to redirect the user to
@@ -28,7 +53,7 @@ def generate_gmail_oauth_url(channel_id: str) -> str:
         "scope": app_config_settings.GOOGLE_SCOPES,
         "access_type": "offline",  # It requests a refresh token in addition to the access token
         "prompt": "consent",  # Force consent screen to ensure refresh token is always provided
-        "state": channel_id,  # Attaches the channel ID to the request url so we can identify which channel to update when Google calls back
+        "state": state,
     }
 
     # Create authorization URL
@@ -42,6 +67,7 @@ def generate_gmail_oauth_url(channel_id: str) -> str:
 async def exchange_auth_code_for_tokens(auth_code: str, httpx_client: httpx.AsyncClient = Depends(get_async_httpx_client)) -> Dict[str, Any]:
     """
     Exchange an authorization code for access and refresh tokens from Google.
+    The response is the google oauth standard response data structure.
 
     Args:
         code: The authorization code received from the OAuth redirect
@@ -84,6 +110,7 @@ async def exchange_auth_code_for_tokens(auth_code: str, httpx_client: httpx.Asyn
 async def get_gmail_user_info(access_token: str, httpx_client: httpx.AsyncClient = Depends(get_async_httpx_client)) -> Dict[str, Any]:
     """
     Get Gmail user profile information using the access token.
+    The response is the google standard response data structure for the user info of gmail.
 
     Args:
         access_token: The access token obtained from OAuth

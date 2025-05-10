@@ -31,18 +31,17 @@ async def initialize_gmail_channel_create_and_oauth(supabase: AsyncClient, proje
             raise UserAuthError(error_detail_message="Project not found or access denied")
 
         # Check if channel of this type already exists for this project
-        existing_channel = await supabase.table("channels").select("id").eq("project_id", project_id).eq("channel_type", "Gmail").execute()
+        existing_channel_type = await supabase.table("channels").select("id").eq("project_id", project_id).eq("channel_type", "gmail").execute()
 
-        if existing_channel.data:
+        if existing_channel_type.data:
             raise DataBaseError(error_detail_message="A Gmail channel already exists for this project")
 
         # Create a new channel record for Gmail if the channel does not exist under this project
         new_channel_data = {
             "project_id": project_id,
-            "channel_type": "Gmail",
+            "channel_type": "gmail",
             "is_connected": False,  # Will be updated after full OAuth process or immediately if user oauth credentials already exist
         }
-
         channel_result = await supabase.table("channels").insert(new_channel_data).execute()
 
         if not channel_result.data:
@@ -50,26 +49,29 @@ async def initialize_gmail_channel_create_and_oauth(supabase: AsyncClient, proje
 
         channel_id = channel_result.data[0]["id"]
 
-        # Check if user already has Gmail OAuth credentials
-        user_existing_credentials = await get_user_oauth_credentials(supabase, user_id, "Gmail")
+        # Check if user already has Gmail OAuth credentials TYPE exist
+        user_existing_oauth_credentials = await get_user_oauth_credentials(supabase, user_id, "gmail")
 
-        # If user already has OAuth credentials, update channel as connected and return directly
-        if user_existing_credentials:
+        # If user already has OAuth credentials FOR GMAIL TYPE, update channel as connected and return directly, we will not go through oauth process here
+        if user_existing_oauth_credentials:
             # Update channel as connected
             await supabase.table("channels").update({"is_connected": True}).eq("id", channel_id).execute()
 
             return {
-                "status": "success",
-                "message": "Gmail channel connected with existing oauth credentials",
-                "channel_id": channel_id,
+                "oauth_url": "",
+                "message": "Gmail channel connected with existing gmail oauth credentials",
                 "requires_oauth": False,
             }
 
-        # Otherwise, generate OAuth URL with channel_id in the state parameter
+        # Otherwise, generate OAuth URL with channel_id as state parameter
         oauth_url = generate_gmail_oauth_url(channel_id)
         print("oauth_url:", oauth_url)
 
-        return {"oauth_url": oauth_url, "channel_id": channel_id, "requires_oauth": True}
+        return {
+            "oauth_url": oauth_url,
+            "message": "initial gmail oauth go-through to obtain initial gmail oauth credentials",
+            "requires_oauth": True,
+        }
 
     except (DataBaseError, UserAuthError):
         raise
@@ -78,12 +80,35 @@ async def initialize_gmail_channel_create_and_oauth(supabase: AsyncClient, proje
         raise GeneralServerError(error_detail_message="Something went wrong from our side. Please try again later.")
 
 
+async def gmail_reoauth_process(supabase: AsyncClient, user_id: UUID):
+    # find existing user's invalid credentials for Gmail type
+    user_existing_oauth_credentials = await get_user_oauth_credentials(supabase, user_id, "gmail")
+    if user_existing_oauth_credentials:
+        # Delete the existing credentials
+        await supabase.table("user_oauth_credentials").delete().eq("id", user_existing_oauth_credentials["id"]).execute()
+
+    # Generate a refresh state with special format
+    refresh_state = f"refresh_{str(user_id)}"
+
+    # Generate new OAuth URL
+    oauth_url = generate_gmail_oauth_url(refresh_state)
+
+    return {
+        "oauth_url": oauth_url,
+        "requires_oauth": True,
+        "message": "re-oauth process due to invalidation",
+    }
+
+
+# Note, if user already has existing user oauth credentials for gmail already, then this will NEVER reach
 async def gmail_oauth_complete_callback(supabase: AsyncClient, httpx_client: httpx.AsyncClient, auth_code: str, state: str) -> Dict[str, Any]:
     """
-    Complete the OAuth flow after user authorization by:
+    Complete the OAuth flow after user authorization
     1. Exchanging the authorization code for tokens
     2. Storing tokens at the user level
-    3. Updating the channel as connected
+
+    Complete the OAuth flow after user authorization.
+    Handles both new channel creation and credential refreshing.
 
     Args:
         supabase: Supabase client
@@ -96,8 +121,27 @@ async def gmail_oauth_complete_callback(supabase: AsyncClient, httpx_client: htt
     """
     print("gmail_oauth_complete_callback function runs")
     print("auth_code:", auth_code)
-    print("state (channel id):", state)
+    print("state:", state)
     try:
+        # Check if this is a refresh token invalidation re-oauth flow
+        if state.startswith("refresh_"):
+            # Extract user_id from refresh state
+            user_id = UUID(state.replace("refresh_", ""))
+
+            # Exchange auth code for tokens
+            token_data = await exchange_auth_code_for_tokens(auth_code, httpx_client)
+
+            # Get Gmail user info
+            user_info = await get_gmail_user_info(token_data["access_token"], httpx_client)
+
+            # Store token and user info in oauth_data format
+            oauth_data = {"tokens": token_data, "user_info": user_info}
+
+            # Store the refreshed OAuth credentials
+            await store_user_oauth_credentials(supabase, user_id, "gmail", oauth_data)
+
+            return {"status": "success", "message": "Gmail credentials refreshed successfully."}
+
         # The state parameter contains the channel_id
         channel_id = state
 
@@ -118,21 +162,21 @@ async def gmail_oauth_complete_callback(supabase: AsyncClient, httpx_client: htt
 
         user_id = project_result.data[0]["user_id"]
 
-        # Exchange auth code for tokens
+        # Exchange auth code for tokens (google standard ds)
         token_data = await exchange_auth_code_for_tokens(auth_code, httpx_client)
 
-        # Get Gmail user info
+        # Get Gmail user info (google standard ds)
         user_info = await get_gmail_user_info(token_data["access_token"], httpx_client)
 
-        # Store token and user info in oauth_data format
+        # Construct and Store our custom "oauth_data" DS token using user info in oauth_data format
         oauth_data = {"tokens": token_data, "user_info": user_info}
 
         print("oauth_data after oauth complete:", oauth_data)
 
         # Store OAuth credentials at user level
-        await store_user_oauth_credentials(supabase, UUID(user_id), "Gmail", oauth_data)
+        await store_user_oauth_credentials(supabase, UUID(user_id), "gmail", oauth_data)
 
-        # Update channel as connected
+        # Update channel as connected as well here
         update_result = await supabase.table("channels").update({"is_connected": True}).eq("id", channel_id).execute()
 
         if not update_result.data:
@@ -142,6 +186,7 @@ async def gmail_oauth_complete_callback(supabase: AsyncClient, httpx_client: htt
 
     except DataBaseError:
         raise
+
     except Exception as e:
         print(traceback.format_exc())
         raise GeneralServerError(error_detail_message="Failed to complete Gmail authorization")

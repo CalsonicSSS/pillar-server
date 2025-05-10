@@ -4,18 +4,18 @@ from datetime import datetime
 import asyncio
 import traceback
 from supabase._async.client import AsyncClient
-from app.custom_error import DataBaseError, GeneralServerError, UserAuthError
-from app.utils.gmail_msg_api_services import fetch_full_gmail_messages_for_contact_in_date_range, transform_fetched_full_gmail_message
+from app.custom_error import DataBaseError, GeneralServerError, UserAuthError, UserOauthError
+from app.utils.gmail_msg_api_helpers import fetch_full_gmail_messages_for_contact_in_date_range, transform_fetched_full_gmail_message
 from app.services.oauth_credential_services import get_user_oauth_credentials
 
 
-async def initial_fetch_and_store_messages_from_all_contacts(
+async def initial_fetch_and_store_gmail_messages_from_all_contacts(
     supabase: AsyncClient, channel_id: UUID, contact_ids: List[UUID], start_date: datetime, user_id: UUID
 ) -> Dict[str, Any]:
     """
     Fetch and store initial messages for a channel's contacts from start_date to now.
     """
-    print("initial_fetch_and_store_messages_from_all_contacts function runs")
+    print("initial_fetch_and_store_gmail_messages_from_all_contacts function runs")
     try:
         # Verify channel belongs to user's project
         channel_verification_result = await supabase.rpc(
@@ -31,7 +31,7 @@ async def initial_fetch_and_store_messages_from_all_contacts(
             raise UserAuthError(error_detail_message="Channel not connected")
 
         # Get OAuth credentials from user level
-        user_oauth_credentials = await get_user_oauth_credentials(supabase, user_id, "Gmail")
+        user_oauth_credentials = await get_user_oauth_credentials(supabase, user_id, "gmail")
         if not user_oauth_credentials or not user_oauth_credentials.get("oauth_data"):
             raise UserAuthError(error_detail_message="User Gmail OAuth credentials not found")
 
@@ -122,11 +122,12 @@ async def initial_fetch_and_store_messages_from_all_contacts(
             "total_messages_saved_count": total_messages_saved_count,
         }
 
-    except (DataBaseError, UserAuthError):
+    except (DataBaseError, UserAuthError, UserOauthError):
         raise
+
     except Exception as e:
         print(traceback.format_exc())
-        raise GeneralServerError(error_detail_message="Failed to fetch and store messages")
+        raise GeneralServerError(error_detail_message="Failed to fetch and store gmail messages")
 
 
 async def get_messages_with_filters(supabase: AsyncClient, user_id: UUID, filter_params: Dict[str, Any]) -> List[Dict[str, Any]]:
@@ -176,6 +177,7 @@ async def get_message_by_id(supabase: AsyncClient, message_id: UUID, user_id: UU
 
     except UserAuthError:
         raise
+
     except Exception as e:
         print(traceback.format_exc())
         raise GeneralServerError(error_detail_message="Failed to retrieve message")
@@ -200,6 +202,7 @@ async def mark_message_as_read(supabase: AsyncClient, message_id: UUID, user_id:
 
     except (DataBaseError, UserAuthError):
         raise
+
     except Exception as e:
         print(traceback.format_exc())
         raise GeneralServerError(error_detail_message="Failed to mark message as read")
