@@ -10,7 +10,7 @@ from uuid import UUID
 class ProjectBase(BaseModel):
     name: str
     description: Optional[str] = None
-    project_type: Literal["Business", "Individual"]
+    project_type: Literal["business", "individual"]
     project_context_detail: str
 
 

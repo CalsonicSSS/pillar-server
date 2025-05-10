@@ -4,9 +4,9 @@ from uuid import UUID
 from datetime import datetime
 from app.services.gmail_msg_services import (
     initial_fetch_and_store_gmail_messages_from_all_contacts,
-    get_messages_with_filters,
-    get_message_by_id,
-    mark_message_as_read,
+    get_gmail_messages_with_filters,
+    get_gmail_message_by_id,
+    mark_gmail_message_as_read,
 )
 from app.utils.app_states import get_async_supabase_client, get_async_httpx_client
 from supabase._async.client import AsyncClient
@@ -53,24 +53,24 @@ async def get_messages_handler(
         "limit": limit,
         "offset": offset,
     }
-    return await get_messages_with_filters(supabase, user_id, filter_params)
+    return await get_gmail_messages_with_filters(supabase, user_id, filter_params)
 
 
 @message_router.get("/gmail/{message_id}", response_model=Dict[str, Any])
-async def get_message_by_id_handler(
+async def get_gmail_message_by_id_handler(
     message_id: UUID = Path(...),
     supabase: AsyncClient = Depends(get_async_supabase_client),
     user_id: UUID = Depends(verify_jwt_and_get_user_id),
 ):
     print("/messages/{message_id} GET route reached")
-    return await get_message_by_id(supabase, message_id, user_id)
+    return await get_gmail_message_by_id(supabase, message_id, user_id)
 
 
 @message_router.patch("/gmail/{message_id}/read", response_model=Dict[str, Any])
-async def mark_message_as_read_handler(
+async def mark_gmail_message_as_read_handler(
     message_id: UUID = Path(...),
     supabase: AsyncClient = Depends(get_async_supabase_client),
     user_id: UUID = Depends(verify_jwt_and_get_user_id),
 ):
     print("/messages/{message_id}/read PATCH route reached")
-    return await mark_message_as_read(supabase, message_id, user_id)
+    return await mark_gmail_message_as_read(supabase, message_id, user_id)

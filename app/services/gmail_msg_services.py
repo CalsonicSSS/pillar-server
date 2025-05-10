@@ -87,7 +87,7 @@ async def initial_fetch_and_store_gmail_messages_from_all_contacts(
 
                     # Check if message already exists
                     existing_stored_message = (
-                        await supabase.table("messages")
+                        await supabase.table("gmail_messages")
                         .select("id")
                         .eq("platform_message_id", transformed_message_data["platform_message_id"])
                         .eq("channel_id", str(channel_id))
@@ -99,7 +99,7 @@ async def initial_fetch_and_store_gmail_messages_from_all_contacts(
                         continue
 
                     # Store message in database
-                    result = await supabase.table("messages").insert(transformed_message_data).execute()
+                    result = await supabase.table("gmail_messages").insert(transformed_message_data).execute()
 
                     if result.data:
                         saved_count += 1
@@ -130,15 +130,15 @@ async def initial_fetch_and_store_gmail_messages_from_all_contacts(
         raise GeneralServerError(error_detail_message="Failed to fetch and store gmail messages")
 
 
-async def get_messages_with_filters(supabase: AsyncClient, user_id: UUID, filter_params: Dict[str, Any]) -> List[Dict[str, Any]]:
+async def get_gmail_messages_with_filters(supabase: AsyncClient, user_id: UUID, filter_params: Dict[str, Any]) -> List[Dict[str, Any]]:
     """
     Get messages with filtering options using the RPC function.
     """
-    print("get_messages_with_filters service function runs")
+    print("get_gmail_messages_with_filters function runs")
     try:
         # Call the RPC function with user_id and filter parameters
         result = await supabase.rpc(
-            "get_messages_with_filters",
+            "get_gmail_messages_with_filters",
             {
                 "user_id_param": str(user_id),
                 "channel_id_param": str(filter_params.get("channel_id")) if filter_params.get("channel_id") else None,
@@ -159,15 +159,15 @@ async def get_messages_with_filters(supabase: AsyncClient, user_id: UUID, filter
         raise GeneralServerError(error_detail_message="Failed to retrieve messages")
 
 
-async def get_message_by_id(supabase: AsyncClient, message_id: UUID, user_id: UUID) -> Dict[str, Any]:
+async def get_gmail_message_by_id(supabase: AsyncClient, message_id: UUID, user_id: UUID) -> Dict[str, Any]:
     """
     Get a specific message by ID with user verification.
     """
-    print("get_message_by_id service function runs")
+    print("get_message_by_id function runs")
     try:
         # Verify message belongs to user's project through channel
         message_verification_result = await supabase.rpc(
-            "get_message_with_user_verification", {"message_id_param": str(message_id), "user_id_param": str(user_id)}
+            "get_gmail_message_with_user_verification", {"message_id_param": str(message_id), "user_id_param": str(user_id)}
         ).execute()
 
         if not message_verification_result.data:
@@ -183,17 +183,17 @@ async def get_message_by_id(supabase: AsyncClient, message_id: UUID, user_id: UU
         raise GeneralServerError(error_detail_message="Failed to retrieve message")
 
 
-async def mark_message_as_read(supabase: AsyncClient, message_id: UUID, user_id: UUID) -> Dict[str, Any]:
+async def mark_gmail_message_as_read(supabase: AsyncClient, message_id: UUID, user_id: UUID) -> Dict[str, Any]:
     """
     Mark a message as read with user verification.
     """
     print("mark_message_as_read service function runs")
     try:
         # Verify message belongs to user's project
-        await get_message_by_id(supabase, message_id, user_id)
+        await get_gmail_message_by_id(supabase, message_id, user_id)
 
         # Update message read status
-        result = await supabase.table("messages").update({"is_read": True}).eq("id", str(message_id)).execute()
+        result = await supabase.table("gmail_messages").update({"is_read": True}).eq("id", str(message_id)).execute()
 
         if not result.data:
             raise DataBaseError(error_detail_message="Failed to mark message as read")

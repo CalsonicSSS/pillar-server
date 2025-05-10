@@ -12,8 +12,10 @@ async def create_new_project(supabase: AsyncClient, new_project_payload: Project
     try:
         new_project_data = new_project_payload.model_dump()
         new_project_data["user_id"] = str(user_id)  # we need to convert UUID to str for json serialization
-        new_project_data["status"] = "Active"  # "Active" for new projects
-        new_project_data["start_date"] = new_project_data["start_date"].isoformat()  # dont add "Z" here and it should already be in UTC from frontend
+        new_project_data["status"] = "active"  # "active" for new projects
+        new_project_data["start_date"] = new_project_data[
+            "start_date"
+        ].isoformat()  # dont add "Z" here as it should already be in UTC timezone from request
         new_project_data["avatar_letter"] = getProjectAvatarLetter(new_project_data["name"])
 
         print("new_project_data:", new_project_data)
@@ -117,8 +119,8 @@ async def archive_project(supabase: AsyncClient, project_id: UUID, user_id: UUID
     print("archive_project service function runs")
 
     try:
-        # Set status to "Archived"
-        project_update_data = {"status": "Archived"}
+        # Set status to "archived"
+        project_update_data = {"status": "archived"}
 
         result = await supabase.table("projects").update(project_update_data).eq("id", str(project_id)).eq("user_id", str(user_id)).execute()
 
@@ -139,8 +141,8 @@ async def unarchive_project(supabase: AsyncClient, project_id: UUID, user_id: UU
     print("unarchive_project service function runs")
 
     try:
-        # Set status to "Active"
-        project_update_data = {"status": "Active"}
+        # Set status to "active"
+        project_update_data = {"status": "active"}
 
         result = await supabase.table("projects").update(project_update_data).eq("id", str(project_id)).eq("user_id", str(user_id)).execute()
 

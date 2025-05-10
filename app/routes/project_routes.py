@@ -9,8 +9,6 @@ from app.utils.user_auth import verify_jwt_and_get_user_id
 
 project_router = APIRouter(prefix="/projects", tags=["projects"])
 
-# UUID("570af574-0d01-412a-a31b-716da6be8f8a") for testing in projects
-
 
 @project_router.post("/", response_model=ProjectResponse)
 async def create_new_project_handler(

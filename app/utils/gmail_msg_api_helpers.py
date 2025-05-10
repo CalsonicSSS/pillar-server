@@ -55,7 +55,7 @@ async def fetch_full_gmail_messages_for_contact_in_date_range(
             return []
 
         # Fetch full messages using batch requests
-        full_messages = []
+        fetched_full_messages = []
         batch_size = 50  # Google recommends 50-100 requests per batch
 
         # Process messages in batches
@@ -88,13 +88,12 @@ async def fetch_full_gmail_messages_for_contact_in_date_range(
             for msg in raw_messages_in_current_batch:
                 msg_id = msg["id"]
                 if msg_id in batch_results:
-                    full_messages.append(batch_results[msg_id])
+                    fetched_full_messages.append(batch_results[msg_id])
 
             print(f"Processed batch: {i//batch_size + 1}, messages: {len(batch_results)}")
 
-        print(f"Total full messages fetched: {len(full_messages)}")
-        print("full_messages: ", full_messages)
-        return full_messages
+        print(f"Total full messages fetched: {len(fetched_full_messages)}")
+        return fetched_full_messages
 
     except UserOauthError:
         raise
