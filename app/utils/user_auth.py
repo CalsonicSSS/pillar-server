@@ -74,12 +74,14 @@ async def verify_jwt_and_get_user_id(
         # Get user ID from the token - try both "sub" and "user_id"
         clerk_id = jwt_payload.get("sub")
         if not clerk_id:
-            raise UserAuthError(error_detail_message="Invalid token: no user identifier found")
+            raise UserAuthError(error_detail_message="Invalid token: no user identifier found with Clerk")
+
+        print("clerk_id:", clerk_id)
 
         # Look up the user in Supabase by Clerk ID
         user = await get_user_by_clerk_id(supabase, clerk_id)
 
-        return user.id  # this will be uuid data type
+        return user.id  # this will be uuid data type automatically converted by pydantic
 
     except Exception as e:
         print(traceback.format_exc())

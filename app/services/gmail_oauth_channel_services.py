@@ -30,7 +30,7 @@ async def initialize_gmail_channel_create_and_oauth(supabase: AsyncClient, proje
         if not project_result.data:
             raise UserAuthError(error_detail_message="Project not found or access denied")
 
-        # Check if channel of this type already exists for this project
+        # Check if channel of this type (gmail) already exists for this project
         existing_channel_type = await supabase.table("channels").select("id").eq("project_id", project_id).eq("channel_type", "gmail").execute()
 
         if existing_channel_type.data:

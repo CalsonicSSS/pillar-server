@@ -10,7 +10,6 @@ from app.services.gmail_msg_services import (
 )
 from app.utils.app_states import get_async_supabase_client, get_async_httpx_client
 from supabase._async.client import AsyncClient
-from httpx import AsyncClient
 from app.utils.user_auth import verify_jwt_and_get_user_id
 
 message_router = APIRouter(prefix="/messages", tags=["messages"])
@@ -22,11 +21,10 @@ async def fetch_initial_messages_handler(
     contact_ids: List[UUID] = Body(...),
     start_date: datetime = Body(...),
     supabase: AsyncClient = Depends(get_async_supabase_client),
-    httpx_client: AsyncClient = Depends(get_async_httpx_client),
     user_id: UUID = Depends(verify_jwt_and_get_user_id),
 ):
     print("/gmail/messages/fetch POST route reached")
-    return await initial_fetch_and_store_gmail_messages_from_all_contacts(supabase, httpx_client, channel_id, contact_ids, start_date, user_id)
+    return await initial_fetch_and_store_gmail_messages_from_all_contacts(supabase, channel_id, contact_ids, start_date, user_id)
 
 
 @message_router.get("/gmail/", response_model=List[Dict[str, Any]])

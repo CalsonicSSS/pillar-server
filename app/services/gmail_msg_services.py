@@ -30,16 +30,17 @@ async def initial_fetch_and_store_gmail_messages_from_all_contacts(
         if not channel_data.get("is_connected", False):
             raise UserAuthError(error_detail_message="Channel not connected")
 
-        # Get OAuth credentials from user level
-        user_oauth_credentials = await get_user_oauth_credentials(supabase, user_id, "gmail")
-        if not user_oauth_credentials or not user_oauth_credentials.get("oauth_data"):
+        # Get gmail OAuth credentials from user level
+        user_gmail_oauth_credentials = await get_user_oauth_credentials(supabase, user_id, "gmail")
+        if not user_gmail_oauth_credentials or not user_gmail_oauth_credentials.get("oauth_data"):
             raise UserAuthError(error_detail_message="User Gmail OAuth credentials not found")
 
-        oauth_data = user_oauth_credentials["oauth_data"]
+        user_oauth_data = user_gmail_oauth_credentials["oauth_data"]
+        print("user_oauth_data:", user_oauth_data)
 
         # Get the user's email address from oauth_data
-        user_email = oauth_data.get("user_info", {}).get("emailAddress", "")
-        if not user_email:
+        user_gmail = user_oauth_data.get("user_info", {}).get("emailAddress", "")
+        if not user_gmail:
             raise DataBaseError(error_detail_message="User email not found in OAuth data")
 
         # For each contact, fetch and store messages
@@ -68,7 +69,7 @@ async def initial_fetch_and_store_gmail_messages_from_all_contacts(
             # Fetch messages for this contact
             print(f"Fetching messages for contact: {contact_identifier}")
             contact_full_gmail_messages_fetched = await fetch_full_gmail_messages_for_contact_in_date_range(
-                oauth_data=oauth_data,
+                oauth_data=user_oauth_data,
                 start_date=start_date_str,
                 end_date=end_date_str,
                 contact_email=contact_identifier,
@@ -83,7 +84,7 @@ async def initial_fetch_and_store_gmail_messages_from_all_contacts(
             for full_gmail_message in contact_full_gmail_messages_fetched:
                 try:
                     # Process Gmail message
-                    transformed_message_data = transform_fetched_full_gmail_message(full_gmail_message, str(channel_id), str(contact_id), user_email)
+                    transformed_message_data = transform_fetched_full_gmail_message(full_gmail_message, str(channel_id), str(contact_id), user_gmail)
 
                     # Check if message already exists
                     existing_stored_message = (

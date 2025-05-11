@@ -15,8 +15,8 @@ async def fetch_full_gmail_messages_for_contact_in_date_range(
     print("fetch_full_gmail_messages_for_contact_in_date_range runs...")
     try:
         # Create Gmail service
-        service = create_gmail_service(oauth_data)
-        if not service:
+        gmail_service = create_gmail_service(oauth_data)
+        if not gmail_service:
             return []
 
         next_day = (end_date + timedelta(days=1)).strftime("%Y/%m/%d")
@@ -27,8 +27,8 @@ async def fetch_full_gmail_messages_for_contact_in_date_range(
         query = f"(from:{contact_email} OR to:{contact_email}) after:{start_date} before:{next_day}"
         print(f"Query: {query}")
 
-        # Get message IDs
-        response = service.users().messages().list(userId="me", q=query, maxResults=min(max_results, 100)).execute()
+        # Get raw messages within first page with max_result
+        response = gmail_service.users().messages().list(userId="me", q=query, maxResults=min(max_results, 100)).execute()
         print(f"First raw fetch Response: {response}")
 
         fetched_raw_messages = response.get("messages", [])
@@ -37,7 +37,7 @@ async def fetch_full_gmail_messages_for_contact_in_date_range(
         # Handle pagination if needed
         while next_page_token and len(fetched_raw_messages) < max_results:
             page_response = (
-                service.users()
+                gmail_service.users()
                 .messages()
                 .list(userId="me", q=query, pageToken=next_page_token, maxResults=min(max_results - len(fetched_raw_messages), 100))
                 .execute()
@@ -64,7 +64,7 @@ async def fetch_full_gmail_messages_for_contact_in_date_range(
             batch_results = {}
 
             # Create a batch request
-            batch = service.new_batch_http_request()
+            batch = gmail_service.new_batch_http_request()
 
             # Add callback function to process each response
             def callback_factory(message_id):
@@ -79,7 +79,7 @@ async def fetch_full_gmail_messages_for_contact_in_date_range(
             # Add each message to the batch
             for msg in raw_messages_in_current_batch:
                 msg_id = msg["id"]
-                batch.add(service.users().messages().get(userId="me", id=msg_id, format="full"), callback=callback_factory(msg_id))
+                batch.add(gmail_service.users().messages().get(userId="me", id=msg_id, format="full"), callback=callback_factory(msg_id))
 
             # Execute the batch request for all raw messages within the current batch
             batch.execute()

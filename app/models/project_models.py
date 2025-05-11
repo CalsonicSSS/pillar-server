@@ -24,14 +24,14 @@ class ProjectCreate(ProjectBase):
 class ProjectUpdate(BaseModel):
     name: Optional[str] = None
     description: Optional[str] = None
-    status: Optional[Literal["Active", "Archived"]] = None
+    status: Optional[Literal["active", "archived"]] = None
     project_context_detail: Optional[str] = None
-    project_type: Optional[Literal["Business", "Individual"]] = None
+    project_type: Optional[Literal["business", "individual"]] = None
 
 
 class ProjectResponse(ProjectBase):
     id: UUID
-    status: Literal["Active", "Archived"]
+    status: Literal["active", "archived"]
     start_date: datetime
     created_at: datetime
     updated_at: datetime
