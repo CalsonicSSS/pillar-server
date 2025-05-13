@@ -11,6 +11,7 @@ from app.routes.gmail_oauth_channel_routes import oauth_router
 from app.routes.gmail_msg_routes import message_router
 from app.routes.contact_routes import contact_router
 from app.routes.timeline_recap_routes import timeline_recap_router
+from app.utils.scheduler import init_scheduler, shutdown_scheduler
 
 
 @asynccontextmanager
@@ -19,10 +20,19 @@ async def lifespan(app: FastAPI):
     print("Fastapi Start-up Setting...")
     app.state.supabase_client = await create_client(app_config_settings.SUPABASE_URL, app_config_settings.SUPABASE_KEY)
     app.state.httpx_client = httpx.AsyncClient()
+
+    # Initialize the scheduler
+    init_scheduler(app.state.supabase_client)
+
     yield
+
     # Shutdown: Clean up resources if necessary
     print("shutting down cleaning...")
     await app.state.httpx_client.aclose()
+
+    # Shutdown the scheduler
+    shutdown_scheduler()
+
     print("cleaning done and closed")
 
 
