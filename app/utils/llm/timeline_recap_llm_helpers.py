@@ -71,7 +71,7 @@ def format_all_message_contents(messages: List[Dict[str, Any]]) -> List[Dict[str
 
         # Truncate very long bodies
         if len(body) > 2000:
-            body = body[:2000] + "... [truncated]"
+            body = body[:3500] + "... [truncated]"
 
         all_message_contents += f"Message:\n{body}\n\n"
         all_message_contents += "-" * 40 + "\n\n"
