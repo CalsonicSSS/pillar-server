@@ -21,7 +21,7 @@ async def lifespan(app: FastAPI):
     app.state.supabase_client = await create_client(app_config_settings.SUPABASE_URL, app_config_settings.SUPABASE_KEY)
     app.state.httpx_client = httpx.AsyncClient()
 
-    # Initialize the scheduler
+    # Initialize scheduler
     init_scheduler(app.state.supabase_client)
 
     yield
@@ -30,7 +30,7 @@ async def lifespan(app: FastAPI):
     print("shutting down cleaning...")
     await app.state.httpx_client.aclose()
 
-    # Shutdown the scheduler
+    # Shutdown scheduler
     shutdown_scheduler()
 
     print("cleaning done and closed")

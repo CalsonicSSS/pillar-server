@@ -6,6 +6,7 @@ from supabase._async.client import AsyncClient
 from app.custom_error import DataBaseError, GeneralServerError, UserAuthError
 from app.models.timeline_recap_models import RecapSummaryResponse, TimelineRecapResponse
 from app.utils.llm.timeline_recap_llm_helpers import generate_weekly_summary, generate_daily_summary
+import logging
 
 
 async def get_project_timeline_recap(supabase: AsyncClient, project_id: UUID, user_id: UUID) -> TimelineRecapResponse:
@@ -276,3 +277,206 @@ async def generate_to_be_summarized_timeline_recap_summaries(supabase: AsyncClie
 
 
 # ------------------------------------------------------------------------------------------------------------------------------------------
+# scheduler service functions
+
+# Configure logging
+logger = logging.getLogger("pillar.scheduler")
+
+
+async def schedule_daily_recaps_update(supabase: AsyncClient) -> None:
+    """
+    Daily update for all projects' timeline recaps.
+    This function runs at 8:00am UTC daily and updates the most recent daily summary for each project.
+    """
+    logger.info("Running scheduled daily recaps update...")
+
+    try:
+        # Get all projects
+        active_projects_result = await supabase.table("projects").select("id, user_id, project_context_detail").eq("status", "active").execute()
+
+        if not active_projects_result.data:
+            logger.info("No active projects found for daily recap update")
+            return
+
+        # Get current time (8:00am UTC of the current day)
+        now_utc = datetime.now(timezone.utc)
+        today_8am_utc = now_utc.replace(hour=8, minute=0, second=0, microsecond=0)
+
+        # Calculate date range for yesterday
+        end_date = today_8am_utc
+        start_date = end_date - timedelta(days=1)
+
+        # Update count
+        updated_count = 0
+
+        # Process each project
+        for active_project in active_projects_result.data:
+            project_id = active_project["id"]
+            user_id = active_project["user_id"]
+            project_context = active_project.get("project_context_detail", "")
+
+            try:
+                # Get existing timeline recap structure
+                existing_recaps = (
+                    await supabase.table("communication_timeline_recap")
+                    .select("*")
+                    .eq("project_id", project_id)
+                    .eq("summary_type", "daily")
+                    .order("start_date", options={"ascending": False})
+                    .execute()
+                )
+
+                if not existing_recaps.data or len(existing_recaps.data) < 3:
+                    logger.warning(f"Incomplete daily recap structure for project {project_id}, skipping")
+                    continue
+
+                # Get the oldest daily recap to replace
+                oldest_recap = min(existing_recaps.data, key=lambda x: datetime.fromisoformat(x["start_date"]))
+                oldest_recap_id = oldest_recap["id"]
+
+                # Get messages from the date range
+                messages = await supabase.rpc(
+                    "get_messages_with_filters",
+                    {
+                        "user_id_param": user_id,
+                        "project_id_param": project_id,
+                        "channel_id_param": None,  # All channels
+                        "contact_id_param": None,  # All contacts
+                        "thread_id_param": None,  # All threads
+                        "start_date_param": start_date.isoformat(),
+                        "end_date_param": end_date.isoformat(),
+                        "is_read_param": None,  # Both read and unread
+                        "is_from_contact_param": None,  # Both from user and contacts
+                        "limit_param": 100,  # Reasonable limit for summarization
+                        "offset_param": 0,
+                    },
+                ).execute()
+
+                # Generate summary
+                if messages.data:
+                    summary = await generate_daily_summary(start_date=start_date, messages=messages.data, project_context=project_context)
+                else:
+                    summary = "• No significant summary during this day."
+
+                # Create updated daily recap content
+                updated_recap = {
+                    "start_date": start_date.isoformat(),
+                    "end_date": end_date.isoformat(),
+                    "content": summary,
+                }
+
+                # Update the recap with the summary
+                await supabase.table("communication_timeline_recap").update(updated_recap).eq("id", oldest_recap_id).execute()
+
+                updated_count += 1
+
+            except Exception as e:
+                logger.error(f"Error updating daily recap for project {project_id}: {str(e)}")
+                logger.error(traceback.format_exc())
+                continue
+
+        logger.info(f"Daily recap update completed. Updated {updated_count} projects.")
+
+    except Exception as e:
+        logger.error(f"Error in daily recap scheduler: {str(e)}")
+        logger.error(traceback.format_exc())
+
+
+async def schedule_weekly_recaps_update(supabase: AsyncClient) -> None:
+    """
+    Weekly update for all projects' timeline recaps.
+    This function runs at 8:00am UTC every Monday and updates the most recent weekly summary for each project.
+    """
+    logger.info("Running scheduled weekly recaps update...")
+
+    try:
+        # Get all projects
+        active_projects_result = await supabase.table("projects").select("id, user_id, project_context_detail").eq("status", "active").execute()
+
+        if not active_projects_result.data:
+            logger.info("No projects found for weekly recap update")
+            return
+
+        # Get current time (8:00am UTC of the current Monday)
+        now_utc = datetime.now(timezone.utc)
+        today_8am_utc = now_utc.replace(hour=8, minute=0, second=0, microsecond=0)
+
+        # Calculate date range for the past week
+        end_date = today_8am_utc
+        start_date = end_date - timedelta(days=7)
+
+        # Update count
+        updated_count = 0
+
+        # Process each project
+        for active_project in active_projects_result.data:
+            project_id = active_project["id"]
+            user_id = active_project["user_id"]
+            project_context = active_project.get("project_context_detail", "")
+
+            try:
+                # Get existing timeline recap structure
+                existing_recaps = (
+                    await supabase.table("communication_timeline_recap")
+                    .select("*")
+                    .eq("project_id", project_id)
+                    .eq("summary_type", "weekly")
+                    .order("start_date", options={"ascending": False})
+                    .execute()
+                )
+
+                if not existing_recaps.data or len(existing_recaps.data) < 4:
+                    logger.warning(f"Incomplete weekly recap structure for project {project_id}, skipping")
+                    continue
+
+                # Get the oldest weekly recap to replace
+                oldest_recap = min(existing_recaps.data, key=lambda x: datetime.fromisoformat(x["start_date"]))
+                oldest_recap_id = oldest_recap["id"]
+
+                # Get messages from the date range
+                messages = await supabase.rpc(
+                    "get_messages_with_filters",
+                    {
+                        "user_id_param": user_id,
+                        "project_id_param": project_id,
+                        "channel_id_param": None,  # All channels
+                        "contact_id_param": None,  # All contacts
+                        "thread_id_param": None,  # All threads
+                        "start_date_param": start_date.isoformat(),
+                        "end_date_param": end_date.isoformat(),
+                        "is_read_param": None,  # Both read and unread
+                        "is_from_contact_param": None,  # Both from user and contacts
+                        "limit_param": 200,  # Higher limit for weekly summaries
+                        "offset_param": 0,
+                    },
+                ).execute()
+
+                # Generate summary
+                if messages.data:
+                    summary = await generate_weekly_summary(
+                        start_date=start_date, end_date=end_date, messages=messages.data, project_context=project_context
+                    )
+                else:
+                    summary = "• No significant summary during this week."
+
+                updated_recap = {
+                    "start_date": start_date.isoformat(),
+                    "end_date": end_date.isoformat(),
+                    "content": summary,
+                }
+
+                # Update the recap with the summary
+                await supabase.table("communication_timeline_recap").update(updated_recap).eq("id", oldest_recap_id).execute()
+
+                updated_count += 1
+
+            except Exception as e:
+                logger.error(f"Error updating weekly recap for project {project_id}: {str(e)}")
+                logger.error(traceback.format_exc())
+                continue
+
+        logger.info(f"Weekly recap update completed. Updated {updated_count} projects.")
+
+    except Exception as e:
+        logger.error(f"Error in weekly recap scheduler: {str(e)}")
+        logger.error(traceback.format_exc())
