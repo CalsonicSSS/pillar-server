@@ -27,6 +27,10 @@ class Settings(BaseSettings):
     GOOGLE_REDIRECT_URI: str
     GOOGLE_SCOPES: str
 
+    # claude llm api
+    ANTHROPIC_API_KEY: str  # Claude API key
+    CLAUDE_MODEL_HAIKU_3_5: str = "claude-3-5-haiku-20241022"
+
     class Config:
         env_file = ".env"
         case_sensitive = True

@@ -5,7 +5,7 @@ import httpx
 from app.custom_error import DataBaseError, GeneralServerError, UserAuthError
 import traceback
 from app.utils.gmail_oauth_helpers import generate_gmail_oauth_url, exchange_auth_code_for_tokens, get_gmail_user_info
-from app.services.oauth_credential_services import get_user_oauth_credentials, store_user_oauth_credentials
+from app.services.oauth_credential_services import get_user_oauth_credentials_by_channel_type, store_user_oauth_credentials
 
 
 async def initialize_gmail_channel_create_and_oauth(supabase: AsyncClient, project_id: str, user_id: UUID) -> Dict[str, Any]:
@@ -36,7 +36,7 @@ async def initialize_gmail_channel_create_and_oauth(supabase: AsyncClient, proje
         if existing_channel_type.data:
             raise DataBaseError(error_detail_message="A Gmail channel already exists for this project")
 
-        # Create a new channel record for Gmail if the channel does not exist under this project
+        # Create a new channel record for Gmail if the channel does not exist yet under this project
         new_channel_data = {
             "project_id": project_id,
             "channel_type": "gmail",
@@ -50,7 +50,7 @@ async def initialize_gmail_channel_create_and_oauth(supabase: AsyncClient, proje
         channel_id = channel_result.data[0]["id"]
 
         # Check if user already has Gmail OAuth credentials TYPE exist
-        user_existing_oauth_credentials = await get_user_oauth_credentials(supabase, user_id, "gmail")
+        user_existing_oauth_credentials = await get_user_oauth_credentials_by_channel_type(supabase, user_id, "gmail")
 
         # If user already has OAuth credentials FOR GMAIL TYPE, update channel as connected and return directly, we will not go through oauth process here
         if user_existing_oauth_credentials:
@@ -67,7 +67,6 @@ async def initialize_gmail_channel_create_and_oauth(supabase: AsyncClient, proje
         # Otherwise, generate OAuth URL with channel_id as state parameter
         print("user dont have initial gmail oauth credentials, generate oauth url")
         oauth_url = generate_gmail_oauth_url(channel_id)
-        print("oauth_url:", oauth_url)
 
         return {
             "oauth_url": oauth_url,
@@ -83,8 +82,8 @@ async def initialize_gmail_channel_create_and_oauth(supabase: AsyncClient, proje
 
 
 async def gmail_reoauth_process(supabase: AsyncClient, user_id: UUID):
-    # find existing user's invalid credentials for Gmail type
-    user_existing_oauth_credentials = await get_user_oauth_credentials(supabase, user_id, "gmail")
+    # find existing user's invalided credentials for Gmail type
+    user_existing_oauth_credentials = await get_user_oauth_credentials_by_channel_type(supabase, user_id, "gmail")
     if user_existing_oauth_credentials:
         # Delete the existing credentials
         await supabase.table("user_oauth_credentials").delete().eq("id", user_existing_oauth_credentials["id"]).execute()

@@ -6,7 +6,7 @@ from app.utils.gmail_oauth_helpers import create_gmail_service
 from app.custom_error import UserOauthError
 
 
-async def fetch_full_gmail_messages_for_contact_in_date_range(
+def fetch_full_gmail_messages_for_contact_in_date_range(
     oauth_data: Dict[str, Any], start_date: str, end_date: datetime, contact_email: str, max_results: int = 1000
 ) -> List[Dict[str, Any]]:
     """
@@ -107,7 +107,7 @@ async def fetch_full_gmail_messages_for_contact_in_date_range(
 # -------------------------------------------------------------------------------------------------------------------------------------
 
 
-def get_email_body(fetched_full_gmail_message, supabase_message_data):
+def get_gmail_body(fetched_full_gmail_message, supabase_message_data):
     """
     Extract email body from Gmail message with support for nested structures.
     Handles various MIME types and nested multipart messages.
@@ -255,14 +255,15 @@ def transform_fetched_full_gmail_message(
         "channel_id": channel_id,
         "contact_id": contact_id,
         "thread_id": fetched_full_gmail_message.get("threadId"),
-        "sender_email": "",
-        "recipient_emails": [],
+        "sender_account": "",
+        "recipient_accounts": [],
         "subject": "",
         "body_text": "",
         "body_html": "",
         "registered_at": datetime.now().isoformat(),
         "is_read": False,
         "is_from_contact": False,
+        "channel_type": "gmail",
     }
 
     # Process internal date
@@ -283,12 +284,12 @@ def transform_fetched_full_gmail_message(
     if "from" in headers:
         from_value = headers["from"]
         if "<" in from_value:
-            supabase_message_data["sender_email"] = from_value.split("<")[1].strip(">")
+            supabase_message_data["sender_account"] = from_value.split("<")[1].strip(">")
         else:
-            supabase_message_data["sender_email"] = from_value
+            supabase_message_data["sender_account"] = from_value
 
     # Determine if message is from contact
-    supabase_message_data["is_from_contact"] = supabase_message_data["sender_email"].lower() != user_email.lower()
+    supabase_message_data["is_from_contact"] = supabase_message_data["sender_account"].lower() != user_email.lower()
 
     # Get recipients
     if "to" in headers:
@@ -300,12 +301,12 @@ def transform_fetched_full_gmail_message(
                 email = recipient.split("<")[1].strip(">")
             else:
                 email = recipient
-            supabase_message_data["recipient_emails"].append(email)
+            supabase_message_data["recipient_accounts"].append(email)
 
     # Get subject
     supabase_message_data["subject"] = headers.get("subject", "")
 
     # Start extraction with the message payload
-    get_email_body(fetched_full_gmail_message, supabase_message_data)
+    get_gmail_body(fetched_full_gmail_message, supabase_message_data)
 
     return supabase_message_data

@@ -10,6 +10,7 @@ from app.routes.channel_routes import channel_router
 from app.routes.gmail_oauth_channel_routes import oauth_router
 from app.routes.gmail_msg_routes import message_router
 from app.routes.contact_routes import contact_router
+from app.routes.timeline_recap_routes import timeline_recap_router
 
 
 @asynccontextmanager
@@ -49,6 +50,7 @@ app.include_router(channel_router, prefix=app_config_settings.API_V1_PREFIX)
 app.include_router(contact_router, prefix=app_config_settings.API_V1_PREFIX)
 app.include_router(oauth_router, prefix=app_config_settings.API_V1_PREFIX)
 app.include_router(message_router, prefix=app_config_settings.API_V1_PREFIX)
+app.include_router(timeline_recap_router, prefix=app_config_settings.API_V1_PREFIX)
 
 
 @app.get("/")

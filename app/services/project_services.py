@@ -18,8 +18,6 @@ async def create_new_project(supabase: AsyncClient, new_project_payload: Project
         ].isoformat()  # dont add "Z" here as it should already be in UTC timezone from request
         new_project_data["avatar_letter"] = getProjectAvatarLetter(new_project_data["name"])
 
-        print("new_project_data:", new_project_data)
-
         # .execute() is the method where we actually send the request to Supabase as I/O operation
         result = await supabase.table("projects").insert(new_project_data).execute()
 

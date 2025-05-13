@@ -4,7 +4,8 @@ from datetime import datetime, timedelta, timezone
 import traceback
 from supabase._async.client import AsyncClient
 from app.custom_error import DataBaseError, GeneralServerError, UserAuthError
-from app.models.timeline_recap_models import RecapSummaryCreate, RecapSummaryResponse, TimelineRecapResponse
+from app.models.timeline_recap_models import RecapSummaryResponse, TimelineRecapResponse
+from app.utils.llm.timeline_recap_llm_helpers import generate_weekly_summary, generate_daily_summary
 
 
 async def get_project_timeline_recap(supabase: AsyncClient, project_id: UUID, user_id: UUID) -> TimelineRecapResponse:
@@ -22,7 +23,7 @@ async def get_project_timeline_recap(supabase: AsyncClient, project_id: UUID, us
 
         # Get recent activity (daily summaries for past 3 days)
         recent_activity_result = (
-            await supabase.table("communication_summaries")
+            await supabase.table("communication_timeline_recap")
             .select("*")
             .eq("project_id", str(project_id))
             .eq("summary_type", "daily")
@@ -33,7 +34,7 @@ async def get_project_timeline_recap(supabase: AsyncClient, project_id: UUID, us
 
         # Get past 4 weeks activity (weekly summaries)
         past_weeks_result = (
-            await supabase.table("communication_summaries")
+            await supabase.table("communication_timeline_recap")
             .select("*")
             .eq("project_id", str(project_id))
             .eq("summary_type", "weekly")
@@ -56,9 +57,11 @@ async def get_project_timeline_recap(supabase: AsyncClient, project_id: UUID, us
         raise GeneralServerError(error_detail_message="Failed to retrieve timeline recap")
 
 
-async def initialize_project_timeline_recap(supabase: AsyncClient, project_id: UUID, user_id: UUID) -> Dict[str, Any]:
+# This function mainly just to create 7 entries (3 daily + 4 weekly) as placeholder data structure in the database
+# this function should be fully AUTOMATICALLY called when a new project is created by user
+async def initialize_project_timeline_recap_data_structure(supabase: AsyncClient, project_id: UUID, user_id: UUID) -> Dict[str, Any]:
     """
-    Generate initial timeline recap for a project with 8:00am UTC as the daily boundary.
+    Generate initial timeline recap data_structure for a project with 8:00am UTC as the daily boundary for the very first time only.
     """
     try:
         # Verify project and get start date
@@ -71,7 +74,7 @@ async def initialize_project_timeline_recap(supabase: AsyncClient, project_id: U
 
         # Check if recap already exists
         existing_project_timeline_recap = (
-            await supabase.table("communication_summaries").select("id").eq("project_id", str(project_id)).limit(1).execute()
+            await supabase.table("communication_timeline_recap").select("id").eq("project_id", str(project_id)).limit(1).execute()
         )
 
         if existing_project_timeline_recap.data:
@@ -101,7 +104,7 @@ async def initialize_project_timeline_recap(supabase: AsyncClient, project_id: U
                 "summary_type": "daily",
                 "start_date": reference_day_boundary.isoformat(),
                 "end_date": now.isoformat(),
-                "content": "No message summary" if reference_day_boundary >= project_start_date else "Unavailable",
+                "content": "To be summarized" if reference_day_boundary >= project_start_date else "Unavailable",
             }
         )
 
@@ -116,7 +119,7 @@ async def initialize_project_timeline_recap(supabase: AsyncClient, project_id: U
                     "summary_type": "daily",
                     "start_date": day_start.isoformat(),
                     "end_date": day_end.isoformat(),
-                    "content": "No message summary" if day_start >= project_start_date else "Unavailable",
+                    "content": "To be summarized" if day_start >= project_start_date else "Unavailable",
                 }
             )
 
@@ -154,7 +157,7 @@ async def initialize_project_timeline_recap(supabase: AsyncClient, project_id: U
 
         # Insert all summaries
         all_summaries = daily_summaries + weekly_summaries
-        result = await supabase.table("communication_summaries").insert(all_summaries).execute()
+        result = await supabase.table("communication_timeline_recap").insert(all_summaries).execute()
 
         if not result.data:
             raise DataBaseError(error_detail_message="Failed to create timeline recap")
@@ -177,8 +180,123 @@ async def initialize_project_timeline_recap(supabase: AsyncClient, project_id: U
 def get_content_status(start_date, end_date, project_start_date):
     """Helper function to determine the appropriate content status"""
     if start_date >= project_start_date:
-        return "No message summary"
+        return "To be summarized"
     elif end_date > project_start_date:
-        return "Partial data available (project started during this period)"
+        return "To be summarized"
     else:
         return "Unavailable"
+
+
+# this is the function that actually does the LLM summarization for EACH OF ALL fetched recap elements WITHIN A SPECIFIC PROJECT
+# Only after initialization can "generate_timeline_recap_summaries" be meaningfully called afterwards (This sequence is critical)
+async def generate_timeline_recap_summaries(
+    supabase: AsyncClient, project_id: UUID, user_id: UUID, timeline_recap_element_id: UUID = None
+) -> Dict[str, Any]:
+    """
+    Generate summaries for timeline recap using Claude.
+    If timeline_recap_element_id is provided, only generate that specific summary.
+    Otherwise, generate summaries for all "To be summarized" entries.
+    """
+    print("generate_timeline_recap_summaries service function runs")
+    try:
+        # First, verify the project belongs to the user
+        project_result = (
+            await supabase.table("projects")
+            .select("id, start_date, project_context_detail")
+            .eq("id", str(project_id))
+            .eq("user_id", str(user_id))
+            .execute()
+        )
+
+        if not project_result.data:
+            raise UserAuthError(error_detail_message="Project not found or access denied")
+
+        project_context = project_result.data[0].get("project_context_detail", "")
+
+        # find all timeline element(s) to be generated later within the communication_timeline_recap
+        # either based on specific summary element or based on whole specific project
+        if timeline_recap_element_id:
+            # Generate summary for a specific timeline recap element
+            recap_element = (
+                await supabase.table("communication_timeline_recap")
+                .select("*")
+                .eq("id", str(timeline_recap_element_id))
+                .eq("project_id", str(project_id))
+                .execute()
+            )
+
+            if not recap_element.data:
+                return {"status": "error", "message": "Recap element not found or not eligible for generation", "generated_count": generated_count}
+
+            project_timeline_recap_elements_to_generate = recap_element.data
+        else:
+            # Generate summaries for all timeline recap elements within a project
+            recap_elements = (
+                await supabase.table("communication_timeline_recap")
+                .select("*")
+                .eq("project_id", str(project_id))
+                .eq("content", "To be summarized")
+                .execute()
+            )
+            if not recap_elements.data:
+                return {"status": "error", "message": "Recap elements not found or not eligible for generation", "generated_count": generated_count}
+
+            project_timeline_recap_elements_to_generate = recap_elements.data
+
+        # Process each timeline recap element summary content
+        generated_count = 0
+        for recap_element in project_timeline_recap_elements_to_generate:
+            recap_element_id = recap_element["id"]
+            recap_element_type = recap_element["summary_type"]
+            recap_element_start_date = datetime.fromisoformat(recap_element["start_date"])
+            recap_element_end_date = datetime.fromisoformat(recap_element["end_date"])
+
+            # Get messages within this date time range of this current recap_element
+            all_messages_within_recap_element_time_range = await supabase.rpc(
+                "get_messages_with_filters",
+                {
+                    "user_id_param": str(user_id),
+                    "project_id_param": str(project_id),
+                    "channel_id_param": None,  # All channels
+                    "contact_id_param": None,  # All contacts
+                    "thread_id_param": None,  # All possible threads
+                    "start_date_param": recap_element_start_date.isoformat(),
+                    "end_date_param": recap_element_end_date.isoformat(),
+                    "is_read_param": None,  # Both read and unread
+                    "is_from_contact_param": None,  # Both from user and contacts
+                    "limit_param": 100,  # Reasonable limit for summarization
+                    "offset_param": 0,
+                },
+            ).execute()
+
+            messages = all_messages_within_recap_element_time_range.data
+
+            # Generate summary based on type for this specific recap element
+            if recap_element_type == "daily":
+                recap_element_summary_content = await generate_daily_summary(
+                    start_date=recap_element_start_date,
+                    messages=messages,
+                    project_context=project_context,
+                )
+            else:  # weekly
+                recap_element_summary_content = await generate_weekly_summary(
+                    start_date=recap_element_start_date,
+                    end_date=recap_element_end_date,
+                    messages=messages,
+                    project_context=project_context,
+                )
+
+            # Update the target timeline recap element with summarized content in the database
+            await supabase.table("communication_timeline_recap").update({"content": recap_element_summary_content}).eq(
+                "id", recap_element_id
+            ).execute()
+
+            generated_count += 1
+
+        return {"status": "success", "message": f"Successfully generated {generated_count} summaries", "generated_count": generated_count}
+
+    except UserAuthError:
+        raise
+    except Exception as e:
+        print(traceback.format_exc())
+        raise GeneralServerError(error_detail_message="Failed to generate timeline recap summaries")

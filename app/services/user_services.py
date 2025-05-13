@@ -27,7 +27,7 @@ async def manage_user_from_clerk(request: Request, supabase: AsyncClient) -> dic
 
             result = await supabase.table("users").insert(new_user_data).execute()
 
-            if len(result.data) == 0:
+            if not result.data:
                 raise DataBaseError(error_detail_message="Failed to create user")
 
             return {"status": "success", "message": "User created"}

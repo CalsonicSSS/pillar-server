@@ -6,12 +6,12 @@ from app.custom_error import DataBaseError, GeneralServerError
 import traceback
 
 
-async def get_user_oauth_credentials(supabase: AsyncClient, user_id: UUID, channel_type: str) -> Optional[Dict[str, Any]]:
+async def get_user_oauth_credentials_by_channel_type(supabase: AsyncClient, user_id: UUID, channel_type: str) -> Optional[Dict[str, Any]]:
     """
     Get OAuth credentials for a specific user and channel type.
     Returns None if credentials don't exist.
     """
-    print("get_user_oauth_credentials service function runs")
+    print("get_user_oauth_credentials_by_channel_type service function runs")
     try:
         result = await supabase.table("user_oauth_credentials").select("*").eq("user_id", str(user_id)).eq("channel_type", channel_type).execute()
 
@@ -33,7 +33,7 @@ async def store_user_oauth_credentials(supabase: AsyncClient, user_id: UUID, cha
     print("store_user_oauth_credentials service function runs")
     try:
         # Check if credentials already exist
-        user_existing_credentials = await get_user_oauth_credentials(supabase, user_id, channel_type)
+        user_existing_credentials = await get_user_oauth_credentials_by_channel_type(supabase, user_id, channel_type)
 
         if user_existing_credentials:
             # Update existing credentials

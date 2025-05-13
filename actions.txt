@@ -1,6 +1,6 @@
-- pip freeze > requirements.txt (The requirements.txt file doesn't automatically update when you install packages. You need to explicitly update it)
-
 - pip install -r requirements.txt (to install all additional packages from other branch merged in)
+
+- pip freeze > requirements.txt (The requirements.txt file doesn't automatically update when you install packages. You need to explicitly update it)
 
 - venv\Scripts\activate
 

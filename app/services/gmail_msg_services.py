@@ -6,16 +6,19 @@ import traceback
 from supabase._async.client import AsyncClient
 from app.custom_error import DataBaseError, GeneralServerError, UserAuthError, UserOauthError
 from app.utils.gmail_msg_api_helpers import fetch_full_gmail_messages_for_contact_in_date_range, transform_fetched_full_gmail_message
-from app.services.oauth_credential_services import get_user_oauth_credentials
+from app.services.oauth_credential_services import get_user_oauth_credentials_by_channel_type
 
 
-async def initial_fetch_and_store_gmail_messages_from_all_contacts(
+# this function will be run whenever a new contact is added by user in the frontend
+# this works either for initial project creation or dynamically when a new contact(s) is added
+# front end will only send the newly added contact(s) id to this function EACH TIME (no previous added contact ids)
+async def fetch_and_store_gmail_messages_from_all_contacts(
     supabase: AsyncClient, channel_id: UUID, contact_ids: List[UUID], start_date: datetime, user_id: UUID
 ) -> Dict[str, Any]:
     """
     Fetch and store initial messages for a channel's contacts from start_date to now.
     """
-    print("initial_fetch_and_store_gmail_messages_from_all_contacts function runs")
+    print("fetch_and_store_gmail_messages_from_all_contacts function runs")
     try:
         # Verify channel belongs to user's project
         channel_verification_result = await supabase.rpc(
@@ -31,7 +34,7 @@ async def initial_fetch_and_store_gmail_messages_from_all_contacts(
             raise UserAuthError(error_detail_message="Channel not connected")
 
         # Get gmail OAuth credentials from user level
-        user_gmail_oauth_credentials = await get_user_oauth_credentials(supabase, user_id, "gmail")
+        user_gmail_oauth_credentials = await get_user_oauth_credentials_by_channel_type(supabase, user_id, "gmail")
         if not user_gmail_oauth_credentials or not user_gmail_oauth_credentials.get("oauth_data"):
             raise UserAuthError(error_detail_message="User Gmail OAuth credentials not found")
 
@@ -43,7 +46,6 @@ async def initial_fetch_and_store_gmail_messages_from_all_contacts(
         if not user_gmail:
             raise DataBaseError(error_detail_message="User email not found in OAuth data")
 
-        # For each contact, fetch and store messages
         total_messages_fetched_count = 0
         total_messages_saved_count = 0
 
@@ -68,7 +70,7 @@ async def initial_fetch_and_store_gmail_messages_from_all_contacts(
 
             # Fetch messages for this contact
             print(f"Fetching messages for contact: {contact_identifier}")
-            contact_full_gmail_messages_fetched = await fetch_full_gmail_messages_for_contact_in_date_range(
+            contact_full_gmail_messages = fetch_full_gmail_messages_for_contact_in_date_range(
                 oauth_data=user_oauth_data,
                 start_date=start_date_str,
                 end_date=end_date_str,
@@ -76,19 +78,21 @@ async def initial_fetch_and_store_gmail_messages_from_all_contacts(
                 max_results=1000,
             )
 
-            total_messages_fetched_count += len(contact_full_gmail_messages_fetched)
-            print(f"Found {len(contact_full_gmail_messages_fetched)} messages for contact: {contact_identifier}")
+            total_messages_fetched_count += len(contact_full_gmail_messages)
+            print(f"Found {len(contact_full_gmail_messages)} messages for contact: {contact_identifier}")
 
             # Process and store each message
             saved_count = 0
-            for full_gmail_message in contact_full_gmail_messages_fetched:
+            for contact_full_gmail_message in contact_full_gmail_messages:
                 try:
                     # Process Gmail message
-                    transformed_message_data = transform_fetched_full_gmail_message(full_gmail_message, str(channel_id), str(contact_id), user_gmail)
+                    transformed_message_data = transform_fetched_full_gmail_message(
+                        contact_full_gmail_message, str(channel_id), str(contact_id), user_gmail
+                    )
 
                     # Check if message already exists
                     existing_stored_message = (
-                        await supabase.table("gmail_messages")
+                        await supabase.table("messages")
                         .select("id")
                         .eq("platform_message_id", transformed_message_data["platform_message_id"])
                         .eq("channel_id", str(channel_id))
@@ -100,14 +104,14 @@ async def initial_fetch_and_store_gmail_messages_from_all_contacts(
                         continue
 
                     # Store message in database
-                    result = await supabase.table("gmail_messages").insert(transformed_message_data).execute()
+                    result = await supabase.table("messages").insert(transformed_message_data).execute()
 
                     if result.data:
                         saved_count += 1
 
                 except Exception as e:
                     # Log error but continue processing other messages
-                    print(f"Error processing message {full_gmail_message.get('id')}: {str(e)}")
+                    print(f"Error processing message {contact_full_gmail_message.get('id')}: {str(e)}")
                     print(traceback.format_exc())
 
             total_messages_saved_count += saved_count
@@ -115,7 +119,7 @@ async def initial_fetch_and_store_gmail_messages_from_all_contacts(
 
             # Small delay between contacts to avoid rate limiting
             if contact_id != contact_ids[-1]:
-                await asyncio.sleep(1)
+                await asyncio.sleep(0.5)
 
         return {
             "status": "success",
@@ -131,19 +135,20 @@ async def initial_fetch_and_store_gmail_messages_from_all_contacts(
         raise GeneralServerError(error_detail_message="Failed to fetch and store gmail messages")
 
 
-async def get_gmail_messages_with_filters(supabase: AsyncClient, user_id: UUID, filter_params: Dict[str, Any]) -> List[Dict[str, Any]]:
+async def get_messages_with_filters(supabase: AsyncClient, user_id: UUID, filter_params: Dict[str, Any]) -> List[Dict[str, Any]]:
     """
     Get messages with filtering options using the RPC function.
     """
-    print("get_gmail_messages_with_filters function runs")
+    print("get_messages_with_filters function runs")
     try:
         # Call the RPC function with user_id and filter parameters
         result = await supabase.rpc(
-            "get_gmail_messages_with_filters",
+            "get_messages_with_filters",
             {
                 "user_id_param": str(user_id),
-                "channel_id_param": str(filter_params.get("channel_id")) if filter_params.get("channel_id") else None,
-                "contact_id_param": str(filter_params.get("contact_id")) if filter_params.get("contact_id") else None,
+                "project_id_param": str(filter_params.get("project_id")),
+                "channel_id_param": str(filter_params.get("channel_id")),
+                "contact_id_param": str(filter_params.get("contact_id")),
                 "start_date_param": filter_params.get("start_date"),
                 "end_date_param": filter_params.get("end_date"),
                 "is_read_param": filter_params.get("is_read"),
@@ -168,7 +173,7 @@ async def get_gmail_message_by_id(supabase: AsyncClient, message_id: UUID, user_
     try:
         # Verify message belongs to user's project through channel
         message_verification_result = await supabase.rpc(
-            "get_gmail_message_with_user_verification", {"message_id_param": str(message_id), "user_id_param": str(user_id)}
+            "get_message_with_user_verification", {"message_id_param": str(message_id), "user_id_param": str(user_id)}
         ).execute()
 
         if not message_verification_result.data:
@@ -194,7 +199,7 @@ async def mark_gmail_message_as_read(supabase: AsyncClient, message_id: UUID, us
         await get_gmail_message_by_id(supabase, message_id, user_id)
 
         # Update message read status
-        result = await supabase.table("gmail_messages").update({"is_read": True}).eq("id", str(message_id)).execute()
+        result = await supabase.table("messages").update({"is_read": True}).eq("id", str(message_id)).execute()
 
         if not result.data:
             raise DataBaseError(error_detail_message="Failed to mark message as read")

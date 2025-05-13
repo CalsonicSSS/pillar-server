@@ -9,7 +9,7 @@ class RecapSummaryBase(BaseModel):
     summary_type: Literal["daily", "weekly"]
     start_date: datetime
     end_date: datetime
-    content: str  # Summary text or "No message summary" or "Unavailable"
+    content: str  # Summary text
 
 
 class RecapSummaryCreate(RecapSummaryBase):

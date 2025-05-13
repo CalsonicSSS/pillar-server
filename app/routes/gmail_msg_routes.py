@@ -3,8 +3,8 @@ from typing import List, Dict, Any, Optional
 from uuid import UUID
 from datetime import datetime
 from app.services.gmail_msg_services import (
-    initial_fetch_and_store_gmail_messages_from_all_contacts,
-    get_gmail_messages_with_filters,
+    fetch_and_store_gmail_messages_from_all_contacts,
+    get_messages_with_filters,
     get_gmail_message_by_id,
     mark_gmail_message_as_read,
 )
@@ -16,7 +16,7 @@ message_router = APIRouter(prefix="/messages", tags=["messages"])
 
 
 @message_router.post("/gmail/fetch", response_model=Dict[str, Any])
-async def fetch_initial_messages_handler(
+async def fetch_and_store_gmail_messages_from_all_contacts_handler(
     channel_id: UUID = Body(...),
     contact_ids: List[UUID] = Body(...),
     start_date: datetime = Body(...),
@@ -24,13 +24,15 @@ async def fetch_initial_messages_handler(
     user_id: UUID = Depends(verify_jwt_and_get_user_id),
 ):
     print("/gmail/messages/fetch POST route reached")
-    return await initial_fetch_and_store_gmail_messages_from_all_contacts(supabase, channel_id, contact_ids, start_date, user_id)
+    return await fetch_and_store_gmail_messages_from_all_contacts(supabase, channel_id, contact_ids, start_date, user_id)
 
 
 @message_router.get("/gmail/", response_model=List[Dict[str, Any]])
-async def get_messages_handler(
+async def get_messages_with_filters_handler(
+    project_id: Optional[UUID] = Query(None),
     channel_id: Optional[UUID] = Query(None),
     contact_id: Optional[UUID] = Query(None),
+    thread_id: Optional[UUID] = Query(None),
     start_date: Optional[datetime] = Query(None),
     end_date: Optional[datetime] = Query(None),
     is_read: Optional[bool] = Query(None),
@@ -42,8 +44,10 @@ async def get_messages_handler(
 ):
     print("/gmail/messages GET route reached")
     filter_params = {
+        "project_id": project_id,
         "channel_id": channel_id,
         "contact_id": contact_id,
+        "thread_id": thread_id,
         "start_date": start_date,
         "end_date": end_date,
         "is_read": is_read,
@@ -51,7 +55,7 @@ async def get_messages_handler(
         "limit": limit,
         "offset": offset,
     }
-    return await get_gmail_messages_with_filters(supabase, user_id, filter_params)
+    return await get_messages_with_filters(supabase, user_id, filter_params)
 
 
 @message_router.get("/gmail/{message_id}", response_model=Dict[str, Any])
