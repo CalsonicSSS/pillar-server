@@ -4,7 +4,7 @@ from supabase._async.client import AsyncClient
 import httpx
 from app.custom_error import DataBaseError, GeneralServerError, UserAuthError
 import traceback
-from app.utils.gmail_oauth_helpers import generate_gmail_oauth_url, exchange_auth_code_for_tokens, get_gmail_user_info
+from app.utils.gmail_oauth_channel_helpers import generate_gmail_oauth_url, exchange_auth_code_for_tokens, get_gmail_user_info
 from app.services.oauth_credential_services import get_user_oauth_credentials_by_channel_type, store_user_oauth_credentials
 
 
@@ -81,6 +81,9 @@ async def initialize_gmail_channel_create_and_oauth(supabase: AsyncClient, proje
         raise GeneralServerError(error_detail_message="Something went wrong from our side. Please try again later.")
 
 
+# -----------------------------------------------------------------------------------------------------------------------
+
+
 async def gmail_reoauth_process(supabase: AsyncClient, user_id: UUID):
     # find existing user's invalided credentials for Gmail type
     user_existing_oauth_credentials = await get_user_oauth_credentials_by_channel_type(supabase, user_id, "gmail")
@@ -99,6 +102,9 @@ async def gmail_reoauth_process(supabase: AsyncClient, user_id: UUID):
         "requires_oauth": True,
         "message": "re-oauth process due to invalidation",
     }
+
+
+# -----------------------------------------------------------------------------------------------------------------------
 
 
 # Note, if user already has existing user oauth credentials for gmail already, then this will NEVER reach

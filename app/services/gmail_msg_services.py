@@ -5,7 +5,7 @@ import asyncio
 import traceback
 from supabase._async.client import AsyncClient
 from app.custom_error import DataBaseError, GeneralServerError, UserAuthError, UserOauthError
-from app.utils.gmail_msg_api_helpers import fetch_full_gmail_messages_for_contact_in_date_range, transform_fetched_full_gmail_message
+from app.utils.gmail_msg_helpers import fetch_full_gmail_messages_for_contact_in_date_range, transform_fetched_full_gmail_message
 from app.services.oauth_credential_services import get_user_oauth_credentials_by_channel_type
 
 
@@ -133,82 +133,3 @@ async def fetch_and_store_gmail_messages_from_all_contacts(
     except Exception as e:
         print(traceback.format_exc())
         raise GeneralServerError(error_detail_message="Failed to fetch and store gmail messages")
-
-
-async def get_messages_with_filters(supabase: AsyncClient, user_id: UUID, filter_params: Dict[str, Any]) -> List[Dict[str, Any]]:
-    """
-    Get messages with filtering options using the RPC function.
-    """
-    print("get_messages_with_filters function runs")
-    try:
-        # Call the RPC function with user_id and filter parameters
-        result = await supabase.rpc(
-            "get_messages_with_filters",
-            {
-                "user_id_param": str(user_id),
-                "project_id_param": str(filter_params.get("project_id")),
-                "channel_id_param": str(filter_params.get("channel_id")),
-                "contact_id_param": str(filter_params.get("contact_id")),
-                "start_date_param": filter_params.get("start_date"),
-                "end_date_param": filter_params.get("end_date"),
-                "is_read_param": filter_params.get("is_read"),
-                "is_from_contact_param": filter_params.get("is_from_contact"),
-                "limit_param": filter_params.get("limit", 50),
-                "offset_param": filter_params.get("offset", 0),
-            },
-        ).execute()
-
-        return result.data
-
-    except Exception as e:
-        print(traceback.format_exc())
-        raise GeneralServerError(error_detail_message="Failed to retrieve messages")
-
-
-async def get_gmail_message_by_id(supabase: AsyncClient, message_id: UUID, user_id: UUID) -> Dict[str, Any]:
-    """
-    Get a specific message by ID with user verification.
-    """
-    print("get_message_by_id function runs")
-    try:
-        # Verify message belongs to user's project through channel
-        message_verification_result = await supabase.rpc(
-            "get_message_with_user_verification", {"message_id_param": str(message_id), "user_id_param": str(user_id)}
-        ).execute()
-
-        if not message_verification_result.data:
-            raise UserAuthError(error_detail_message="Message not found or access denied")
-
-        return message_verification_result.data[0]
-
-    except UserAuthError:
-        raise
-
-    except Exception as e:
-        print(traceback.format_exc())
-        raise GeneralServerError(error_detail_message="Failed to retrieve message")
-
-
-async def mark_gmail_message_as_read(supabase: AsyncClient, message_id: UUID, user_id: UUID) -> Dict[str, Any]:
-    """
-    Mark a message as read with user verification.
-    """
-    print("mark_message_as_read service function runs")
-    try:
-        # Verify message belongs to user's project
-        await get_gmail_message_by_id(supabase, message_id, user_id)
-
-        # Update message read status
-        result = await supabase.table("messages").update({"is_read": True}).eq("id", str(message_id)).execute()
-
-        if not result.data:
-            raise DataBaseError(error_detail_message="Failed to mark message as read")
-
-        return result.data[0]
-
-    except (DataBaseError, UserAuthError):
-        raise
-
-    except Exception as e:
-        print(traceback.format_exc())
-        raise GeneralServerError(error_detail_message="Failed to mark message as read")

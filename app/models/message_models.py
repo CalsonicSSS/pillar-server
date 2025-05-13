@@ -4,7 +4,7 @@ from datetime import datetime
 from uuid import UUID
 
 
-class GmailMessageBase(BaseModel):
+class MessageBase(BaseModel):
     platform_message_id: str
     channel_id: UUID
     contact_id: UUID  # Direct reference to the contact
@@ -19,23 +19,25 @@ class GmailMessageBase(BaseModel):
     is_from_contact: bool  # True if sent by contact, False if sent by user
 
 
-class GmailMessageCreate(GmailMessageBase):
+class MessageCreate(MessageBase):
     pass
 
 
-class GmailMessageUpdate(BaseModel):
+class MessageUpdate(BaseModel):
     is_read: Optional[bool] = None
 
 
-class MessageResponse(GmailMessageBase):
+class MessageResponse(MessageBase):
     id: UUID
     created_at: datetime
     updated_at: datetime
 
 
-class GmailMessageFilter(BaseModel):
+class MessageFilter(BaseModel):
     channel_id: Optional[UUID] = None
     contact_id: Optional[List[UUID]] = None  # Changed to use contact_id instead of emails
+    project_id: Optional[UUID] = None
+    thread_id: Optional[str] = None
     start_date: Optional[datetime] = None
     end_date: Optional[datetime] = None
     is_read: Optional[bool] = None

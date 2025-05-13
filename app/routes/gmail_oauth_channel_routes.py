@@ -7,11 +7,11 @@ from supabase._async.client import AsyncClient
 from httpx import AsyncClient
 
 
-oauth_router = APIRouter(prefix="/oauth", tags=["oauth"])
+oauth_router = APIRouter(prefix="/oauth/gmail", tags=["oauth"])
 
 
 # so far the flow of gmail oauth process is conducted within a specific project upon a gmail channel creation action triggered by the user
-@oauth_router.post("/gmail/initialize/{project_id}")
+@oauth_router.post("/initialize/{project_id}")
 async def initialize_gmail_channel_create_and_oauth_handler(
     project_id: str = Path(...),
     supabase: AsyncClient = Depends(get_async_supabase_client),
@@ -21,7 +21,7 @@ async def initialize_gmail_channel_create_and_oauth_handler(
     return await initialize_gmail_channel_create_and_oauth(supabase, project_id, user_id)
 
 
-@oauth_router.post("/gmail/refresh")
+@oauth_router.post("/refresh")
 async def refresh_gmail_oauth_handler(
     supabase: AsyncClient = Depends(get_async_supabase_client),
     user_id: UUID = Depends(verify_jwt_and_get_user_id),
@@ -34,7 +34,7 @@ async def refresh_gmail_oauth_handler(
     return await gmail_reoauth_process(supabase, user_id)
 
 
-@oauth_router.get("/gmail/callback")
+@oauth_router.get("/callback")
 async def gmail_oauth_complete_callback_handler(
     code: str = Query(...),
     state: str = Query(...),  # state parameter contains channel_id
