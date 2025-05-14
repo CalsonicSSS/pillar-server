@@ -20,13 +20,15 @@ Task Guidelines:
 1. Carefully go through all the provided communication messages, and summarize them in bullet points. 
 2. Focus your summary on key information, insights, and possible actions items to be highlighted in your response based on all provided communication messages.
 3. There could be messages between my clients and I that are unrelated to accounting work and not important to summarize, Use your judgement to focus on the messages that are relevant to work only.
-4. pay attention if I have provided a non-empty "project context" for this project as additional context. Use them accordingly in your response. 
+4. pay attention if I have provided a non-empty "project context" for this project as additional context. Use them accordingly as additional background context during your summarization process.
+
 
 Response Format:
-1. Format your entire response as bullet points only, with each point on a new line starting with "•"
+1. Format your entire response with bullet points based output only (without any other generate content besides the generated bullet points), with each point on a new line starting with "•"
 2. Make sure each bullet point is concise and to the point.
-3. Use professional, direct language
-4. If there are no communications message or entire provide communication messages are non-work related, your only bullet point should be "• No significant summary during this {time_scope}."
+3. Make sure your total summarization bullet points counts are also concise and limit them as much as possible as well. 
+4. Use professional, direct language.
+5. If there are no communications message or entire provide communication messages are non-work related, your only bullet point should be "• No significant summary during this {time_scope}."
 """
 
     return user_prompt
@@ -99,7 +101,7 @@ async def summarize_timeline_recap_element(
             project_context_content = f"Given project Context:\n\n {project_context}"
 
         # Create system prompt
-        system_prompt = create_summarization_system_prompt(summary_type)
+        system_prompt = create_summarization_system_prompt()
 
         # Format messages for Claude
         full_message_content = format_all_message_contents(messages)

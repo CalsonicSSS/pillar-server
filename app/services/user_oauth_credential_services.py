@@ -1,7 +1,6 @@
 from typing import Dict, Any, Optional
 from uuid import UUID
 from supabase._async.client import AsyncClient
-from app.models.oauth_credential_models import OAuthCredentialCreate, OAuthCredentialUpdate
 from app.custom_error import DataBaseError, GeneralServerError
 import traceback
 

@@ -74,6 +74,7 @@ async def initialize_project_timeline_recap_data_structure(supabase: AsyncClient
             raise UserAuthError(error_detail_message="Project not found or access denied")
 
         project_start_date = datetime.fromisoformat(project_result.data[0]["start_date"])
+        print("Project start date:", project_start_date)
 
         # Check if recap already exists
         existing_project_timeline_recap = (

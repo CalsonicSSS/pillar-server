@@ -37,9 +37,8 @@ async def initialize_project_timeline_recap_data_structure_handler(
 @timeline_recap_router.post("/project/{project_id}/generate-tbs-summaries")
 async def generate_to_be_summarized_timeline_recap_summaries_handler(
     project_id: UUID = Path(...),
-    timeline_recap_element_id: Optional[UUID] = Query(None),
     supabase: AsyncClient = Depends(get_async_supabase_client),
     user_id: UUID = Depends(verify_jwt_and_get_user_id),
 ):
     print("/timeline-recap/project/{project_id}/generate-summaries POST route reached")
-    return await generate_to_be_summarized_timeline_recap_summaries(supabase, project_id, user_id, timeline_recap_element_id)
+    return await generate_to_be_summarized_timeline_recap_summaries(supabase, project_id, user_id)

@@ -6,7 +6,7 @@ import traceback
 from supabase._async.client import AsyncClient
 from app.custom_error import DataBaseError, GeneralServerError, UserAuthError, UserOauthError
 from app.utils.gmail_msg_helpers import fetch_full_gmail_messages_for_contact_in_date_range, transform_fetched_full_gmail_message
-from app.services.oauth_credential_services import get_user_oauth_credentials_by_channel_type
+from app.services.user_oauth_credential_services import get_user_oauth_credentials_by_channel_type
 
 
 # this function will be run whenever a new contact is added by user in the frontend

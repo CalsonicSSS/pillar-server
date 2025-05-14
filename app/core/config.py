@@ -1,8 +1,6 @@
 from functools import lru_cache
 from pydantic_settings import BaseSettings
 
-print("config and setting up...")
-
 
 class Settings(BaseSettings):
     # the assigned values will be used as default values, it will be overridden by the values in .env file

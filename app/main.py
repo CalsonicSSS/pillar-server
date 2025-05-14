@@ -23,6 +23,7 @@ async def lifespan(app: FastAPI):
 
     # Initialize scheduler
     init_scheduler(app.state.supabase_client)
+    print("Fastapi Start-up completed!")
 
     yield
 
