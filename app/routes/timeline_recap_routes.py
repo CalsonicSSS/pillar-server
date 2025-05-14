@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, Path, Query
 from app.services.timeline_recap_services import (
     get_project_timeline_recap,
     initialize_project_timeline_recap_data_structure,
-    generate_timeline_recap_summaries,
+    generate_to_be_summarized_timeline_recap_summaries,
 )
 from app.models.timeline_recap_models import TimelineRecapResponse
 from app.utils.app_states import get_async_supabase_client
@@ -34,12 +34,12 @@ async def initialize_project_timeline_recap_data_structure_handler(
     return await initialize_project_timeline_recap_data_structure(supabase, project_id, user_id)
 
 
-@timeline_recap_router.post("/project/{project_id}/generate-summaries")
-async def generate_timeline_recap_summaries_handler(
+@timeline_recap_router.post("/project/{project_id}/generate-tbs-summaries")
+async def generate_to_be_summarized_timeline_recap_summaries_handler(
     project_id: UUID = Path(...),
     timeline_recap_element_id: Optional[UUID] = Query(None),
     supabase: AsyncClient = Depends(get_async_supabase_client),
     user_id: UUID = Depends(verify_jwt_and_get_user_id),
 ):
     print("/timeline-recap/project/{project_id}/generate-summaries POST route reached")
-    return await generate_timeline_recap_summaries(supabase, project_id, user_id, timeline_recap_element_id)
+    return await generate_to_be_summarized_timeline_recap_summaries(supabase, project_id, user_id, timeline_recap_element_id)
