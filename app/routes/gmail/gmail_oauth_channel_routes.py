@@ -1,7 +1,11 @@
 from fastapi import APIRouter, Depends, Query, Path, Response
 from app.utils.app_states import get_async_supabase_client, get_async_httpx_client
 from app.utils.user_auth import verify_jwt_and_get_user_id
-from app.services.gmail_oauth_channel_services import initialize_gmail_channel_create_and_oauth, gmail_oauth_complete_callback, gmail_reoauth_process
+from app.services.gmail.gmail_oauth_channel_services import (
+    initialize_gmail_channel_create_and_oauth,
+    gmail_oauth_complete_callback,
+    gmail_reoauth_process,
+)
 from uuid import UUID
 from supabase._async.client import AsyncClient
 from httpx import AsyncClient

@@ -6,7 +6,7 @@ from supabase._async.client import AsyncClient
 from app.custom_error import DataBaseError, GeneralServerError, UserAuthError
 from app.models.timeline_recap_models import RecapSummaryResponse, TimelineRecapResponse
 from app.utils.llm.timeline_recap_llm_helpers import generate_weekly_summary, generate_daily_summary
-import logging
+from app.utils.scheduler import logger
 
 
 async def get_project_timeline_recap(supabase: AsyncClient, project_id: UUID, user_id: UUID) -> TimelineRecapResponse:
@@ -262,9 +262,12 @@ async def generate_to_be_summarized_timeline_recap_summaries(supabase: AsyncClie
                 )
 
             # Update the target timeline recap element with summarized content in the database
-            await supabase.table("communication_timeline_recap").update({"content": recap_element_summary_content}).eq(
-                "id", recap_element_id
-            ).execute()
+            await supabase.table("communication_timeline_recap").update(
+                {
+                    "content": recap_element_summary_content,
+                    "updated_at": datetime.now(timezone.utc).isoformat(),
+                }
+            ).eq("id", recap_element_id).execute()
 
             generated_count += 1
 
@@ -277,11 +280,8 @@ async def generate_to_be_summarized_timeline_recap_summaries(supabase: AsyncClie
         raise GeneralServerError(error_detail_message="Failed to generate timeline recap summaries")
 
 
-# ------------------------------------------------------------------------------------------------------------------------------------------
+# ######################################################################################################################################################
 # scheduler service functions
-
-# Configure logging
-logger = logging.getLogger("pillar.scheduler")
 
 
 async def schedule_daily_recaps_update(supabase: AsyncClient) -> None:
@@ -364,6 +364,7 @@ async def schedule_daily_recaps_update(supabase: AsyncClient) -> None:
                     "start_date": start_date.isoformat(),
                     "end_date": end_date.isoformat(),
                     "content": summary,
+                    "updated_at": datetime.now(timezone.utc).isoformat(),
                 }
 
                 # Update the recap with the summary
@@ -464,6 +465,7 @@ async def schedule_weekly_recaps_update(supabase: AsyncClient) -> None:
                     "start_date": start_date.isoformat(),
                     "end_date": end_date.isoformat(),
                     "content": summary,
+                    "updated_at": datetime.now(timezone.utc).isoformat(),
                 }
 
                 # Update the recap with the summary

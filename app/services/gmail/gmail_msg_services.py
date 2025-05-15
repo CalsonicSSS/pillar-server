@@ -5,7 +5,7 @@ import asyncio
 import traceback
 from supabase._async.client import AsyncClient
 from app.custom_error import DataBaseError, GeneralServerError, UserAuthError, UserOauthError
-from app.utils.gmail_msg_helpers import fetch_full_gmail_messages_for_contact_in_date_range, transform_fetched_full_gmail_message
+from app.utils.gmail.gmail_msg_helpers import fetch_full_gmail_messages_for_contact_in_date_range, transform_fetched_full_gmail_message
 from app.services.user_oauth_credential_services import get_user_oauth_credentials_by_channel_type
 
 
@@ -38,11 +38,11 @@ async def fetch_and_store_gmail_messages_from_all_contacts(
         if not user_gmail_oauth_credentials or not user_gmail_oauth_credentials.get("oauth_data"):
             raise UserAuthError(error_detail_message="User Gmail OAuth credentials not found")
 
-        user_oauth_data = user_gmail_oauth_credentials["oauth_data"]
-        print("user_oauth_data:", user_oauth_data)
+        user_gmail_oauth_data = user_gmail_oauth_credentials["oauth_data"]
+        print("user_gmail_oauth_data:", user_gmail_oauth_data)
 
         # Get the user's email address from oauth_data
-        user_gmail = user_oauth_data.get("user_info", {}).get("emailAddress", "")
+        user_gmail = user_gmail_oauth_data.get("user_info", {}).get("emailAddress", "")
         if not user_gmail:
             raise DataBaseError(error_detail_message="User email not found in OAuth data")
 
@@ -71,7 +71,7 @@ async def fetch_and_store_gmail_messages_from_all_contacts(
             # Fetch messages for this contact
             print(f"Fetching messages for contact: {contact_identifier}")
             contact_full_gmail_messages = fetch_full_gmail_messages_for_contact_in_date_range(
-                oauth_data=user_oauth_data,
+                oauth_data=user_gmail_oauth_data,
                 start_date=start_date_str,
                 end_date=end_date_str,
                 contact_email=contact_identifier,

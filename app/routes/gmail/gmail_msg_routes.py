@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, Body, Path, Query
 from typing import List, Dict, Any
 from uuid import UUID
 from datetime import datetime
-from app.services.gmail_msg_services import (
+from app.services.gmail.gmail_msg_services import (
     fetch_and_store_gmail_messages_from_all_contacts,
 )
 from app.utils.app_states import get_async_supabase_client

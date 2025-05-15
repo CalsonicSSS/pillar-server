@@ -4,7 +4,7 @@ from supabase._async.client import AsyncClient
 import httpx
 from app.custom_error import DataBaseError, GeneralServerError, UserAuthError
 import traceback
-from app.utils.gmail_oauth_channel_helpers import generate_gmail_oauth_url, exchange_auth_code_for_tokens, get_gmail_user_info
+from app.utils.gmail.gmail_oauth_channel_helpers import generate_gmail_oauth_url, exchange_auth_code_for_tokens, get_gmail_user_info
 from app.services.user_oauth_credential_services import get_user_oauth_credentials_by_channel_type, store_user_oauth_credentials
 
 
