@@ -5,6 +5,7 @@ from supabase._async.client import AsyncClient
 from app.custom_error import DataBaseError, GeneralServerError
 import traceback
 from app.utils.generals import getProjectAvatarLetter
+from datetime import datetime, timezone
 
 
 async def create_new_project(supabase: AsyncClient, new_project_payload: ProjectCreate, user_id: UUID) -> ProjectResponse:
@@ -95,6 +96,7 @@ async def update_project(supabase: AsyncClient, project_id: UUID, user_id: UUID,
             # If nothing to update, just return the current project
             return await get_project_by_id(supabase, project_id, user_id)
 
+        project_update_data["updated_at"] = datetime.now(timezone.utc).isoformat()
         result = await supabase.table("projects").update(project_update_data).eq("id", str(project_id)).eq("user_id", str(user_id)).execute()
 
         if not result.data:
@@ -119,6 +121,7 @@ async def archive_project(supabase: AsyncClient, project_id: UUID, user_id: UUID
     try:
         # Set status to "archived"
         project_update_data = {"status": "archived"}
+        project_update_data["updated_at"] = datetime.now(timezone.utc).isoformat()
 
         result = await supabase.table("projects").update(project_update_data).eq("id", str(project_id)).eq("user_id", str(user_id)).execute()
 
@@ -141,6 +144,7 @@ async def unarchive_project(supabase: AsyncClient, project_id: UUID, user_id: UU
     try:
         # Set status to "active"
         project_update_data = {"status": "active"}
+        project_update_data["updated_at"] = datetime.now(timezone.utc).isoformat()
 
         result = await supabase.table("projects").update(project_update_data).eq("id", str(project_id)).eq("user_id", str(user_id)).execute()
 

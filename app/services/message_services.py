@@ -3,6 +3,7 @@ from uuid import UUID
 import traceback
 from supabase._async.client import AsyncClient
 from app.custom_error import DataBaseError, GeneralServerError, UserAuthError
+from datetime import datetime, timezone
 
 
 async def get_messages_with_filters(supabase: AsyncClient, user_id: UUID, filter_params: Dict[str, Any]) -> List[Dict[str, Any]]:
@@ -70,7 +71,17 @@ async def mark_message_as_read(supabase: AsyncClient, message_id: UUID, user_id:
         await get_message_by_id(supabase, message_id, user_id)
 
         # Update message read status
-        result = await supabase.table("messages").update({"is_read": True}).eq("id", str(message_id)).execute()
+        result = (
+            await supabase.table("messages")
+            .update(
+                {
+                    "is_read": True,
+                    "updated_at": datetime.now(timezone.utc).isoformat(),
+                }
+            )
+            .eq("id", str(message_id))
+            .execute()
+        )
 
         if not result.data:
             raise DataBaseError(error_detail_message="Failed to mark message as read")

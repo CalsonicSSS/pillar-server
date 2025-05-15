@@ -6,6 +6,7 @@ from app.custom_error import DataBaseError, GeneralServerError, UserAuthError
 import traceback
 from app.utils.gmail.gmail_oauth_channel_helpers import generate_gmail_oauth_url, exchange_auth_code_for_tokens, get_gmail_user_info
 from app.services.user_oauth_credential_services import get_user_oauth_credentials_by_channel_type, store_user_oauth_credentials
+from datetime import datetime, timezone
 
 
 async def initialize_gmail_channel_create_and_oauth(supabase: AsyncClient, project_id: str, user_id: UUID) -> Dict[str, Any]:
@@ -56,7 +57,12 @@ async def initialize_gmail_channel_create_and_oauth(supabase: AsyncClient, proje
         if user_existing_oauth_credentials:
             # Update channel as connected directly
             print("user already has initial gmail oauth credentials")
-            await supabase.table("channels").update({"is_connected": True}).eq("id", channel_id).execute()
+            await supabase.table("channels").update(
+                {
+                    "is_connected": True,
+                    "updated_at": datetime.now(timezone.utc).isoformat(),
+                }
+            ).eq("id", channel_id).execute()
 
             return {
                 "oauth_url": "",
@@ -186,7 +192,17 @@ async def gmail_oauth_complete_callback(supabase: AsyncClient, httpx_client: htt
         print("gmail initial oauth_data exchanged and stored complete:", oauth_data)
 
         # Update channel as connected as well here
-        update_result = await supabase.table("channels").update({"is_connected": True}).eq("id", channel_id).execute()
+        update_result = (
+            await supabase.table("channels")
+            .update(
+                {
+                    "is_connected": True,
+                    "updated_at": datetime.now(timezone.utc).isoformat(),
+                }
+            )
+            .eq("id", channel_id)
+            .execute()
+        )
 
         if not update_result.data:
             raise DataBaseError(error_detail_message="Failed to update channel connection status")

@@ -3,6 +3,7 @@ from uuid import UUID
 from supabase._async.client import AsyncClient
 from app.custom_error import DataBaseError, GeneralServerError
 import traceback
+from datetime import datetime, timezone
 
 
 async def get_user_oauth_credentials_by_channel_type(supabase: AsyncClient, user_id: UUID, channel_type: str) -> Optional[Dict[str, Any]]:
@@ -38,7 +39,7 @@ async def store_user_oauth_credentials(supabase: AsyncClient, user_id: UUID, cha
             # Update existing credentials
             result = (
                 await supabase.table("user_oauth_credentials")
-                .update({"oauth_data": oauth_data, "updated_at": "now()"})
+                .update({"oauth_data": oauth_data, "updated_at": datetime.now(timezone.utc).isoformat()})
                 .eq("id", user_existing_credentials["id"])
                 .execute()
             )

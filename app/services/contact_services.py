@@ -4,6 +4,7 @@ from uuid import UUID
 from supabase._async.client import AsyncClient
 from app.custom_error import DataBaseError, GeneralServerError, UserAuthError
 import traceback
+from datetime import datetime, timezone
 
 
 async def create_contact(supabase: AsyncClient, new_contact_payload: ContactCreate, user_id: UUID) -> ContactResponse:
@@ -104,7 +105,7 @@ async def update_contact(supabase: AsyncClient, contact_id: UUID, user_id: UUID,
             # If nothing to update, just return the current contact
             return contact
 
-        # Update contact
+        update_data["updated_at"] = (datetime.now(timezone.utc).isoformat(),)
         result = await supabase.table("contacts").update(update_data).eq("id", str(contact_id)).execute()
 
         if not result.data:

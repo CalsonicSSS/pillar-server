@@ -4,6 +4,7 @@ from uuid import UUID
 from supabase._async.client import AsyncClient
 from app.custom_error import DataBaseError, GeneralServerError, UserAuthError
 import traceback
+from datetime import datetime, timezone
 
 
 # async def create_channel(supabase: AsyncClient, new_channel_payload: ChannelCreate, user_id: UUID) -> ChannelResponse:
@@ -102,6 +103,7 @@ async def update_channel(supabase: AsyncClient, channel_id: UUID, user_id: UUID,
             return channel
 
         # Update the channel
+        update_data["updated_at"] = (datetime.now(timezone.utc).isoformat(),)
         result = await supabase.table("channels").update(update_data).eq("id", str(channel_id)).execute()
 
         if not result.data:
