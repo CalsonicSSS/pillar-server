@@ -6,7 +6,7 @@ from supabase._async.client import AsyncClient
 from app.custom_error import DataBaseError, GeneralServerError, UserAuthError
 from app.models.timeline_recap_models import RecapSummaryResponse, TimelineRecapResponse
 from app.utils.llm.timeline_recap_llm_helpers import generate_weekly_summary, generate_daily_summary
-from app.utils.scheduler import logger
+from app.utils.generals import logger
 
 
 async def get_project_timeline_recap(supabase: AsyncClient, project_id: UUID, user_id: UUID) -> TimelineRecapResponse:

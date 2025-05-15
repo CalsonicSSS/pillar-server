@@ -7,8 +7,8 @@ from supabase._async.client import create_client
 from app.routes.project_routes import project_router
 from app.routes.webhook_routes import webhook_router
 from app.routes.channel_routes import channel_router
-from app.routes.gmail_oauth_channel_routes import oauth_router
-from app.routes.gmail_msg_routes import message_router
+from app.routes.gmail.gmail_oauth_channel_routes import oauth_router
+from app.routes.gmail.gmail_msg_routes import message_router
 from app.routes.contact_routes import contact_router
 from app.routes.timeline_recap_routes import timeline_recap_router
 from app.utils.scheduler import init_scheduler, shutdown_scheduler

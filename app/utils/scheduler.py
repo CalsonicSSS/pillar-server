@@ -1,15 +1,11 @@
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
 from datetime import datetime, timezone
-import logging
 import traceback
 from typing import Dict, Any
 from supabase._async.client import AsyncClient
 from app.services.timeline_recap_services import schedule_daily_recaps_update, schedule_weekly_recaps_update
-
-# Configure logging
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger("pillar.scheduler")
+from app.utils.generals import logger
 
 # Global scheduler instance
 scheduler = AsyncIOScheduler(timezone=timezone.utc)
