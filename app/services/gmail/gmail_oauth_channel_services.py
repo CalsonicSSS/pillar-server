@@ -113,7 +113,7 @@ async def gmail_reoauth_process(supabase: AsyncClient, user_id: UUID):
 # -----------------------------------------------------------------------------------------------------------------------
 
 
-# Note, if user already has existing user oauth credentials for gmail already, then this will NEVER reach
+# if user already has existing user oauth credentials for gmail already, then this will NEVER reach
 async def gmail_oauth_complete_callback(supabase: AsyncClient, httpx_client: httpx.AsyncClient, auth_code: str, state: str) -> Dict[str, Any]:
     """
     Complete the OAuth flow after user authorization

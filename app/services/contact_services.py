@@ -25,6 +25,7 @@ async def create_contact(supabase: AsyncClient, new_contact_payload: ContactCrea
         # Create contact
         contact_data = new_contact_payload.model_dump()
         contact_data["channel_id"] = str(contact_data["channel_id"])
+        contact_data["user_id"] = str(user_id)
         result = await supabase.table("contacts").insert(contact_data).execute()
 
         if not result.data:

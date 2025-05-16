@@ -12,6 +12,7 @@ class ContactBase(BaseModel):
 
 class ContactCreate(ContactBase):
     channel_id: UUID
+    user_id: UUID
 
 
 class ContactUpdate(BaseModel):
