@@ -7,10 +7,10 @@ from app.utils.app_states import get_async_supabase_client
 from supabase._async.client import AsyncClient
 from app.utils.user_auth import verify_jwt_and_get_user_id
 
-message_router = APIRouter(prefix="/messages", tags=["messages"])
+general_message_router = APIRouter(prefix="/messages", tags=["messages"])
 
 
-@message_router.get("/", response_model=List[Dict[str, Any]])
+@general_message_router.get("/", response_model=List[Dict[str, Any]])
 async def get_messages_with_filters_handler(
     project_id: Optional[UUID] = Query(None),
     channel_id: Optional[UUID] = Query(None),
@@ -41,7 +41,7 @@ async def get_messages_with_filters_handler(
     return await get_messages_with_filters(supabase, user_id, filter_params)
 
 
-@message_router.get("/{message_id}", response_model=Dict[str, Any])
+@general_message_router.get("/{message_id}", response_model=Dict[str, Any])
 async def get_message_by_id_handler(
     message_id: UUID = Path(...),
     supabase: AsyncClient = Depends(get_async_supabase_client),
@@ -51,7 +51,7 @@ async def get_message_by_id_handler(
     return await get_message_by_id(supabase, message_id, user_id)
 
 
-@message_router.patch("/{message_id}/read", response_model=Dict[str, Any])
+@general_message_router.patch("/{message_id}/read", response_model=Dict[str, Any])
 async def mark_message_as_read_handler(
     message_id: UUID = Path(...),
     supabase: AsyncClient = Depends(get_async_supabase_client),

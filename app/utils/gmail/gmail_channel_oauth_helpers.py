@@ -25,7 +25,7 @@ def generate_gmail_oauth_url(state: str) -> str:
         "client_id": app_config_settings.GOOGLE_CLIENT_ID,
         "redirect_uri": app_config_settings.GOOGLE_REDIRECT_URI,  # this is specify which redirect URI to use after user consent for this client ID setup on GCP
         "response_type": "code",  # tells Google we want an authorization code
-        "scope": app_config_settings.GOOGLE_SCOPES,
+        "scope": app_config_settings.GOOGLE_SCOPES,  # Google expects the scope parameter in the authorization URL to be a space-separated string of scopes
         "access_type": "offline",  # It requests a refresh token in addition to the access token
         "prompt": "consent",  # Force consent screen to ensure refresh token is always provided
         "state": state,

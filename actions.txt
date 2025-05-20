@@ -41,7 +41,7 @@ build command: pip install -r requirements.txt
 
 start command: uvicorn app.main:app --host 0.0.0.0 --port $PORT
 
-add all Environment Variables, and "PORT: 8000"
+add additional env variable: "PORT: 8000"
 
 --------------------------------------------------
 
@@ -50,7 +50,7 @@ for folder naming change
 1. Remove the old venv directory
 Remove-Item -Path .\venv -Recurse -Force
 
-2. reate a new virtual environment:
+2. recreate a new virtual environment:
 python -m venv venv
 
 3. Activate the new environment

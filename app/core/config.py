@@ -1,6 +1,8 @@
 from functools import lru_cache
 from pydantic_settings import BaseSettings
 
+# BaseSettings from pydantic-settings allow values to be pulled from the .env file (by its default), and provide defaults where applicable.
+
 
 class Settings(BaseSettings):
     # the assigned values will be used as default values, it will be overridden by the values in .env file
@@ -34,6 +36,9 @@ class Settings(BaseSettings):
         case_sensitive = True
 
 
+# # Python only caches the module (so the file doesn’t re-run entirely for the subsequent module import in the current execute process) as default behaviour, not the function calls inside it.
+# @lru_cache() ensures that the Settings object is instantiated only once, preventing repeated reads and re-parsing of the .env file.
+# Subsequent imports of "get_app_config_settings" and call do NOT re-execute this specific function of "get_app_config_settings".
 @lru_cache()
 def get_app_config_settings():
     return Settings()

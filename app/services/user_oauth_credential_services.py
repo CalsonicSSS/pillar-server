@@ -6,6 +6,7 @@ import traceback
 from datetime import datetime, timezone
 
 
+# based on the user oauth data structure, we can always find specifc one by user_id and channel_type combined
 async def get_user_oauth_credentials_by_channel_type(supabase: AsyncClient, user_id: UUID, channel_type: str) -> Optional[Dict[str, Any]]:
     """
     Get OAuth credentials for a specific user and channel type.
@@ -25,31 +26,30 @@ async def get_user_oauth_credentials_by_channel_type(supabase: AsyncClient, user
         raise GeneralServerError(error_detail_message="Failed to retrieve OAuth credentials")
 
 
-async def store_user_oauth_credentials(supabase: AsyncClient, user_id: UUID, channel_type: str, oauth_data: Dict[str, Any]) -> Dict[str, Any]:
+# -----------------------------------------------------------------------------------------------------------------------------
+
+
+async def create_user_oauth_credentials_by_channel_type(
+    supabase: AsyncClient, user_id: UUID, channel_type: str, oauth_data: Dict[str, Any]
+) -> Dict[str, Any]:
     """
-    Store or update OAuth credentials for a user and channel type.
-    If credentials already exist, they will be updated.
+    Create new OAuth credentials for a user and channel type.
+    Raises an error if credentials already exist.
     """
-    print("store_user_oauth_credentials service function runs")
+    print("create_user_oauth_credentials_by_channel_type service function runs")
     try:
         # Check if credentials already exist
-        user_existing_credentials = await get_user_oauth_credentials_by_channel_type(supabase, user_id, channel_type)
+        existing_credentials = await get_user_oauth_credentials_by_channel_type(supabase, user_id, channel_type)
 
-        if user_existing_credentials:
-            # Update existing credentials
-            result = (
-                await supabase.table("user_oauth_credentials")
-                .update({"oauth_data": oauth_data, "updated_at": datetime.now(timezone.utc).isoformat()})
-                .eq("id", user_existing_credentials["id"])
-                .execute()
-            )
-        else:
-            # Create new credentials
-            user_new_credentials = {"user_id": str(user_id), "channel_type": channel_type, "oauth_data": oauth_data}
-            result = await supabase.table("user_oauth_credentials").insert(user_new_credentials).execute()
+        if existing_credentials:
+            raise DataBaseError(error_detail_message=f"{channel_type} OAuth credentials already exist for user")
+
+        # Create new credentials
+        new_credentials = {"user_id": str(user_id), "channel_type": channel_type, "oauth_data": oauth_data}
+        result = await supabase.table("user_oauth_credentials").insert(new_credentials).execute()
 
         if not result.data:
-            raise DataBaseError(error_detail_message="Failed to store OAuth credentials")
+            raise DataBaseError(error_detail_message="Failed to create OAuth credentials")
 
         return result.data[0]
 
@@ -57,4 +57,42 @@ async def store_user_oauth_credentials(supabase: AsyncClient, user_id: UUID, cha
         raise
     except Exception as e:
         print(traceback.format_exc())
-        raise GeneralServerError(error_detail_message="Failed to store OAuth credentials")
+        raise GeneralServerError(error_detail_message="Failed to create OAuth credentials")
+
+
+# -----------------------------------------------------------------------------------------------------------------------------
+
+
+async def update_user_oauth_credentials_by_channel_type(
+    supabase: AsyncClient, user_id: UUID, channel_type: str, oauth_data: Dict[str, Any]
+) -> Dict[str, Any]:
+    """
+    Update existing OAuth credentials for a user and channel type.
+    Raises an error if credentials don't exist.
+    """
+    print("update_user_oauth_credentials_by_channel_type service function runs")
+    try:
+        # Check if credentials exist
+        existing_credentials = await get_user_oauth_credentials_by_channel_type(supabase, user_id, channel_type)
+
+        if not existing_credentials:
+            raise DataBaseError(error_detail_message=f"No {channel_type} OAuth credentials found for user to update upon")
+
+        # Update existing credentials
+        result = (
+            await supabase.table("user_oauth_credentials")
+            .update({"oauth_data": oauth_data, "updated_at": datetime.now(timezone.utc).isoformat()})
+            .eq("id", existing_credentials["id"])
+            .execute()
+        )
+
+        if not result.data:
+            raise DataBaseError(error_detail_message="Failed to update OAuth credentials")
+
+        return result.data[0]
+
+    except DataBaseError:
+        raise
+    except Exception as e:
+        print(traceback.format_exc())
+        raise GeneralServerError(error_detail_message="Failed to update OAuth credentials")

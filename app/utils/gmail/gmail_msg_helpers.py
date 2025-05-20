@@ -3,41 +3,8 @@ from datetime import datetime, timezone, timedelta
 import base64
 import traceback
 from app.custom_error import UserOauthError
-from google.oauth2.credentials import Credentials
-from googleapiclient.discovery import build
 from app.custom_error import UserOauthError
-from google.auth.transport.requests import Request
-from app.core.config import app_config_settings
-
-
-def create_gmail_service(oauth_data: Dict[str, Any]):
-    """Create a Gmail API service instance from stored OAuth data."""
-    print("create_gmail_service runs...")
-
-    tokens = oauth_data.get("tokens", {})
-
-    credentials = Credentials(
-        token=tokens.get("access_token"),
-        refresh_token=tokens.get("refresh_token"),
-        token_uri="https://oauth2.googleapis.com/token",
-        client_id=app_config_settings.GOOGLE_CLIENT_ID,
-        client_secret=app_config_settings.GOOGLE_CLIENT_SECRET,
-        scopes=["https://www.googleapis.com/auth/gmail.readonly", "https://www.googleapis.com/auth/gmail.send"],
-    )
-
-    try:
-        # Attempt to refresh the token to validate it
-        credentials.refresh(Request())
-    except Exception as e:
-        print(f"Error creating Gmail service: {str(e)}")
-        print(traceback.format_exc())
-        raise UserOauthError(error_detail_message="Error initializing gmail service with oauth crendential")
-
-    service = build("gmail", "v1", credentials=credentials)
-    return service
-
-
-# -------------------------------------------------------------------------------------------------------------------------------------
+from app.utils.gmail.gmail_api_service import create_gmail_service
 
 
 def fetch_full_gmail_messages_for_contact_in_date_range(

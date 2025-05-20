@@ -227,7 +227,7 @@ async def generate_to_be_summarized_timeline_recap_summaries(supabase: AsyncClie
             recap_element_end_date = datetime.fromisoformat(recap_element["end_date"])
 
             # Get messages within this date time range of this current recap_element
-            all_messages_within_recap_element_time_range = await supabase.rpc(
+            all_project_messages_within_recap_element_time_range = await supabase.rpc(
                 "get_messages_with_filters",
                 {
                     "user_id_param": str(user_id),
@@ -244,20 +244,20 @@ async def generate_to_be_summarized_timeline_recap_summaries(supabase: AsyncClie
                 },
             ).execute()
 
-            messages = all_messages_within_recap_element_time_range.data
+            project_time_filtered_messages = all_project_messages_within_recap_element_time_range.data
 
             # Generate summary based on type for this specific recap element
             if recap_element_type == "daily":
                 recap_element_summary_content = await generate_daily_summary(
                     start_date=recap_element_start_date,
-                    messages=messages,
+                    messages=project_time_filtered_messages,
                     project_context=project_context,
                 )
             else:  # weekly
                 recap_element_summary_content = await generate_weekly_summary(
                     start_date=recap_element_start_date,
                     end_date=recap_element_end_date,
-                    messages=messages,
+                    messages=project_time_filtered_messages,
                     project_context=project_context,
                 )
 

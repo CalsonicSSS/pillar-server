@@ -34,11 +34,11 @@ async def fetch_and_store_gmail_messages_from_all_contacts(
             raise UserAuthError(error_detail_message="Channel not connected")
 
         # Get gmail OAuth credentials from user level
-        user_gmail_oauth_credentials = await get_user_oauth_credentials_by_channel_type(supabase, user_id, "gmail")
-        if not user_gmail_oauth_credentials or not user_gmail_oauth_credentials.get("oauth_data"):
+        user_gmail_credentials = await get_user_oauth_credentials_by_channel_type(supabase, user_id, "gmail")
+        if not user_gmail_credentials or not user_gmail_credentials.get("oauth_data"):
             raise UserAuthError(error_detail_message="User Gmail OAuth credentials not found")
 
-        user_gmail_oauth_data = user_gmail_oauth_credentials["oauth_data"]
+        user_gmail_oauth_data = user_gmail_credentials["oauth_data"]
         print("user_gmail_oauth_data:", user_gmail_oauth_data)
 
         # Get the user's email address from oauth_data

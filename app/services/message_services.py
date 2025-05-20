@@ -13,7 +13,7 @@ async def get_messages_with_filters(supabase: AsyncClient, user_id: UUID, filter
     print("get_messages_with_filters function runs")
     try:
         # Call the RPC function with user_id and filter parameters
-        result = await supabase.rpc(
+        message_query_result = await supabase.rpc(
             "get_messages_with_filters",
             {
                 "user_id_param": str(user_id),
@@ -30,7 +30,7 @@ async def get_messages_with_filters(supabase: AsyncClient, user_id: UUID, filter
             },
         ).execute()
 
-        return result.data
+        return message_query_result.data
 
     except Exception as e:
         print(traceback.format_exc())

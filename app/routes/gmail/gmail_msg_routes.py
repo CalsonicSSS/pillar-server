@@ -9,10 +9,10 @@ from app.utils.app_states import get_async_supabase_client
 from supabase._async.client import AsyncClient
 from app.utils.user_auth import verify_jwt_and_get_user_id
 
-message_router = APIRouter(prefix="/gmail", tags=["messages"])
+gmail_message_router = APIRouter(prefix="/gmail/message", tags=["messages"])
 
 
-@message_router.post("/fetch", response_model=Dict[str, Any])
+@gmail_message_router.post("/fetch", response_model=Dict[str, Any])
 async def fetch_and_store_gmail_messages_from_all_contacts_handler(
     channel_id: UUID = Body(...),
     contact_ids: List[UUID] = Body(...),
@@ -20,5 +20,5 @@ async def fetch_and_store_gmail_messages_from_all_contacts_handler(
     supabase: AsyncClient = Depends(get_async_supabase_client),
     user_id: UUID = Depends(verify_jwt_and_get_user_id),
 ):
-    print("/gmai/fetch POST route reached")
+    print("/gmail/message/fetch POST route reached")
     return await fetch_and_store_gmail_messages_from_all_contacts(supabase, channel_id, contact_ids, start_date, user_id)

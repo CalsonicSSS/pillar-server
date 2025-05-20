@@ -11,8 +11,7 @@ async def manage_user_from_clerk(request: Request, supabase: AsyncClient) -> dic
     print("manage_user_from_clerk service function runs")
 
     try:
-        clerk_webhook_request_payload_raw = await request.body()
-        clerk_webhook_request_payload = json.loads(clerk_webhook_request_payload_raw)
+        clerk_webhook_request_payload = await request.json()
 
         event_type = clerk_webhook_request_payload.get("type")
         clerk_user_data = clerk_webhook_request_payload.get("data", {})
