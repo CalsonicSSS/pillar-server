@@ -41,7 +41,7 @@ async def start_gmail_user_watch(supabase: AsyncClient, user_id: UUID) -> Dict[s
         user_gmail_oauth_data["watch_info"] = {
             "expiration": watch_result["expiration"],
             "topic_name": watch_result["topic_name"],
-            "history_id_started_at": watch_result["history_id"],
+            "current_history_at": watch_result["history_id"],
         }
 
         # Update OAuth data with new the historyId from watch response

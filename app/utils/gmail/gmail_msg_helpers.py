@@ -29,11 +29,11 @@ def fetch_full_gmail_messages_for_contact_in_date_range(
         print(f"Query: {query}")
 
         # Get raw messages within first page with max_result
-        response = gmail_service.users().messages().list(userId="me", q=query, maxResults=min(max_results, 100)).execute()
-        print(f"First raw fetch Response: {response}")
+        initial_response = gmail_service.users().messages().list(userId="me", q=query, maxResults=min(max_results, 100)).execute()
+        print(f"First raw fetch Response: {initial_response}")
 
-        fetched_raw_messages = response.get("messages", [])
-        next_page_token = response.get("nextPageToken")
+        fetched_raw_messages = initial_response.get("messages", [])
+        next_page_token = initial_response.get("nextPageToken")
 
         # Handle pagination if needed
         while next_page_token and len(fetched_raw_messages) < max_results:
