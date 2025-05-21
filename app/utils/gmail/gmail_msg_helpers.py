@@ -7,13 +7,13 @@ from app.custom_error import UserOauthError
 from app.utils.gmail.gmail_api_service import create_gmail_service
 
 
-def fetch_full_gmail_messages_for_contact_in_date_range(
+def fetch_gmail_msg_ids_for_contact_in_date_range(
     oauth_data: Dict[str, Any], start_date: str, end_date: datetime, contact_email: str, max_results: int = 1000
 ) -> List[Dict[str, Any]]:
     """
     Fetch Gmail messages for a specific contact within a date range using batch requests.
     """
-    print("fetch_full_gmail_messages_for_contact_in_date_range runs...")
+    print("fetch_raw_gmail_messages_for_contact_in_date_range runs...")
     try:
         # Create Gmail service
         gmail_service = create_gmail_service(oauth_data)
@@ -56,47 +56,8 @@ def fetch_full_gmail_messages_for_contact_in_date_range(
         if not fetched_raw_messages:
             return []
 
-        # --------------------------------------------------------------------------------
-        # Fetch full messages using batch requests
-        fetched_full_messages = []
-        batch_size = 50  # Google recommends 50-100 requests per batch
-
-        # Process messages in batches
-        for i in range(0, len(fetched_raw_messages), batch_size):
-            raw_messages_in_current_batch = fetched_raw_messages[i : i + batch_size]
-            batch_results = {}
-
-            # Create a batch request
-            batch = gmail_service.new_batch_http_request()
-
-            # Add callback function to process each response
-            def callback_factory(message_id):
-                def callback(request_id, response, exception):
-                    if exception:
-                        print(f"Error fetching message {message_id}: {exception}")
-                    else:
-                        batch_results[message_id] = response
-
-                return callback
-
-            # Add each message to the batch
-            for msg in raw_messages_in_current_batch:
-                msg_id = msg["id"]
-                batch.add(gmail_service.users().messages().get(userId="me", id=msg_id, format="full"), callback=callback_factory(msg_id))
-
-            # Execute the batch request for all raw messages within the current batch
-            batch.execute()
-
-            # Add results to full_messages
-            for msg in raw_messages_in_current_batch:
-                msg_id = msg["id"]
-                if msg_id in batch_results:
-                    fetched_full_messages.append(batch_results[msg_id])
-
-            print(f"Processed batch: {i//batch_size + 1}, messages: {len(batch_results)}")
-
-        print(f"Total full messages fetched: {len(fetched_full_messages)}")
-        return fetched_full_messages
+        msg_ids = [msg["id"] for msg in fetched_raw_messages]
+        return msg_ids
 
     except UserOauthError:
         raise
@@ -105,6 +66,71 @@ def fetch_full_gmail_messages_for_contact_in_date_range(
         print(f"Error fetching messages: {str(e)}")
         print(traceback.format_exc())
         raise
+
+
+# -------------------------------------------------------------------------------------------------------------------------------------
+
+
+def batch_get_gmail_full_messages(user_oauth_data: Dict[str, Any], message_ids: List[str]) -> List[Dict[str, Any]]:
+    """
+    Fetch full Gmail messages in batches using the Gmail API.
+
+    Args:
+        user_oauth_data: User's Gmail OAuth credentials
+        message_ids: List of message IDs to fetch
+
+    Returns:
+        List of full message objects
+    """
+    print(f"batch_get_gmail_full_messages runs for {len(message_ids)} messages")
+    try:
+        if not message_ids:
+            return []
+
+        # Create Gmail service
+        gmail_service = create_gmail_service(user_oauth_data)
+
+        full_messages = []
+        batch_size = 50  # Google recommends 50-100 requests per batch
+
+        # Process messages in batches
+        for i in range(0, len(message_ids), batch_size):
+            current_batch_msg_ids = message_ids[i : i + batch_size]
+            batch_results = {}
+
+            # Create a batch request
+            batch = gmail_service.new_batch_http_request()
+
+            # Add callback function to process each response
+            def callback_factory(msg_id):
+                def callback(request_id, response, exception):
+                    if exception:
+                        print(f"Error fetching message {msg_id}: {exception}")
+                    else:
+                        batch_results[msg_id] = response
+
+                return callback
+
+            # Add each message to the batch
+            for msg_id in current_batch_msg_ids:
+                batch.add(gmail_service.users().messages().get(userId="me", id=msg_id, format="full"), callback=callback_factory(msg_id))
+
+            # Execute the batch request
+            batch.execute()
+
+            # Add results to full_messages
+            for msg_id in current_batch_msg_ids:
+                if msg_id in batch_results:
+                    full_messages.append(batch_results[msg_id])
+
+            print(f"Processed batch {i//batch_size + 1}, fetched {len(batch_results)} messages")
+
+        return full_messages
+
+    except Exception as e:
+        print(f"Error batch getting Gmail messages: {str(e)}")
+        print(traceback.format_exc())
+        raise UserOauthError(error_detail_message=f"Failed to batch get Gmail messages: {str(e)}")
 
 
 # -------------------------------------------------------------------------------------------------------------------------------------

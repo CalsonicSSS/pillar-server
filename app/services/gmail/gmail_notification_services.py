@@ -8,7 +8,7 @@ from supabase._async.client import AsyncClient
 from app.utils.gmail.gmail_notification_helpers import process_gmail_history_changes
 
 
-# this is the process logic that will be only triggered by each of the Gmail Pub/Sub notification sent by Google
+# this is the process logic that will be only triggered by each of the Gmail Pub/Sub notification http request sent by Google
 async def process_gmail_pub_sub_notifications(request: Request, supabase: AsyncClient) -> Dict[str, Any]:
     """
     Handle and process Gmail notifications sent by Google Pub/Sub.

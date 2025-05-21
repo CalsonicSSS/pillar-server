@@ -5,7 +5,11 @@ import asyncio
 import traceback
 from supabase._async.client import AsyncClient
 from app.custom_error import DataBaseError, GeneralServerError, UserAuthError, UserOauthError
-from app.utils.gmail.gmail_msg_helpers import fetch_full_gmail_messages_for_contact_in_date_range, transform_fetched_full_gmail_message
+from app.utils.gmail.gmail_msg_helpers import (
+    fetch_gmail_msg_ids_for_contact_in_date_range,
+    transform_fetched_full_gmail_message,
+    batch_get_gmail_full_messages,
+)
 from app.services.user_oauth_credential_services import get_user_oauth_credentials_by_channel_type
 
 
@@ -46,9 +50,6 @@ async def fetch_and_store_gmail_messages_from_all_contacts(
         if not user_gmail:
             raise DataBaseError(error_detail_message="User email not found in OAuth data")
 
-        total_messages_fetched_count = 0
-        total_messages_saved_count = 0
-
         for contact_id in contact_ids:
             # Get contact details
             contact_result = await supabase.table("contacts").select("*").eq("id", str(contact_id)).execute()
@@ -68,9 +69,9 @@ async def fetch_and_store_gmail_messages_from_all_contacts(
             start_date_str = start_date.strftime("%Y/%m/%d")
             end_date_str = datetime.now()
 
-            # Fetch messages for this contact
+            # Fetch all message ids for this contact within the date range
             print(f"Fetching messages for contact: {contact_identifier}")
-            contact_full_gmail_messages = fetch_full_gmail_messages_for_contact_in_date_range(
+            contact_msg_ids = fetch_gmail_msg_ids_for_contact_in_date_range(
                 oauth_data=user_gmail_oauth_data,
                 start_date=start_date_str,
                 end_date=end_date_str,
@@ -78,15 +79,19 @@ async def fetch_and_store_gmail_messages_from_all_contacts(
                 max_results=1000,
             )
 
-            total_messages_fetched_count += len(contact_full_gmail_messages)
-            print(f"Found {len(contact_full_gmail_messages)} messages for contact: {contact_identifier}")
+            # batch get full messages for this contact
+            contact_full_msgs = batch_get_gmail_full_messages(oauth_data=user_gmail_oauth_data, message_ids=contact_msg_ids)
+
+            print(f"Found {len(contact_full_msgs)} full messages for contact: {contact_identifier}")
 
             # Process and store each message
+            total_messages_saved_count = 0
             saved_count = 0
-            for contact_full_gmail_message in contact_full_gmail_messages:
+
+            for contact_full_msg in contact_full_msgs:
                 try:
                     # Process Gmail message
-                    transformed_message_data = transform_fetched_full_gmail_message(contact_full_gmail_message, str(contact_id), user_gmail)
+                    transformed_message_data = transform_fetched_full_gmail_message(contact_full_msg, str(contact_id), user_gmail)
 
                     # Check if message already exists
                     existing_stored_message = (
@@ -109,7 +114,7 @@ async def fetch_and_store_gmail_messages_from_all_contacts(
 
                 except Exception as e:
                     # Log error but continue processing other messages
-                    print(f"Error processing message {contact_full_gmail_message.get('id')}: {str(e)}")
+                    print(f"Error processing message {contact_full_msg.get('id')}: {str(e)}")
                     print(traceback.format_exc())
 
             total_messages_saved_count += saved_count
@@ -121,7 +126,7 @@ async def fetch_and_store_gmail_messages_from_all_contacts(
 
         return {
             "status": "success",
-            "total_messages_fetched_count": total_messages_fetched_count,
+            "total_messages_fetched_count": len(contact_full_msgs),
             "total_messages_saved_count": total_messages_saved_count,
         }
 

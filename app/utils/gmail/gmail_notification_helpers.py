@@ -6,10 +6,10 @@ from app.services.user_oauth_credential_services import update_user_oauth_creden
 from uuid import UUID
 from supabase._async.client import AsyncClient
 from app.custom_error import GeneralServerError
-from app.utils.gmail.gmail_msg_helpers import transform_fetched_full_gmail_message
+from app.utils.gmail.gmail_msg_helpers import transform_fetched_full_gmail_message, batch_get_gmail_full_messages
 
 
-def get_gmail_history_delta_and_msg_ids(user_oauth_data: Dict[str, Any], current_user_gmail_history_id: str) -> Dict[str, Any]:
+def get_gmail_history_delta_msg_ids(user_oauth_data: Dict[str, Any], current_user_gmail_history_id: str, max_results: int) -> Dict[str, Any]:
     """
     Get history of Gmail changes since the provided history ID.
 
@@ -20,7 +20,7 @@ def get_gmail_history_delta_and_msg_ids(user_oauth_data: Dict[str, Any], current
     Returns:
         Dictionary containing history response data with historyId and changes
     """
-    print(f"get_gmail_history_delta_and_msg_ids runs (for starting history_id: {current_user_gmail_history_id})")
+    print(f"get_gmail_history_delta_msg_ids runs (for starting history_id: {current_user_gmail_history_id})")
     try:
         # Create Gmail service
         gmail_service = create_gmail_service(user_oauth_data)
@@ -29,23 +29,24 @@ def get_gmail_history_delta_and_msg_ids(user_oauth_data: Dict[str, Any], current
         history_params = {
             "startHistoryId": current_user_gmail_history_id,
             "historyTypes": ["messageAdded", "labelAdded"],  # Only care about new messages and label changes
-            "maxResults": 100,  # Adjust as needed
         }
 
         # Get history: we call this to retrieve the list of changes (history records) that occurred since that startHistoryId.
-        history_delta_response = gmail_service.users().history().list(userId="me", **history_params).execute()
+        history_delta_response = gmail_service.users().history().list(userId="me", **history_params, maxResults=min(max_results, 100)).execute()
         print("history_delta_response:", history_delta_response)
 
         # Extract message IDs from history
         message_ids = extract_message_ids_from_history(history_delta_response)
 
         # Handle pagination if necessary
-        while "nextPageToken" in history_delta_response and len(message_ids) < 500:  # Limit to 500 messages per notification
+        while "nextPageToken" in history_delta_response and len(message_ids) < max_results:
             page_token = history_delta_response["nextPageToken"]
             history_params["pageToken"] = page_token
 
             # Get next page of history
-            next_page_response = gmail_service.users().history().list(userId="me", **history_params).execute()
+            next_page_response = (
+                gmail_service.users().history().list(userId="me", **history_params, maxResults=min(max_results - len(message_ids), 100)).execute()
+            )
 
             # Extract more message IDs
             message_ids.update(extract_message_ids_from_history(next_page_response))
@@ -106,75 +107,10 @@ def extract_message_ids_from_history(history_response: Dict[str, Any]) -> Set[st
 # -----------------------------------------------------------------------------------------------------------------------
 
 
-def batch_get_gmail_messages(user_oauth_data: Dict[str, Any], message_ids: List[str]) -> List[Dict[str, Any]]:
-    """
-    Fetch full Gmail messages in batches using the Gmail API.
-
-    Args:
-        user_oauth_data: User's Gmail OAuth credentials
-        message_ids: List of message IDs to fetch
-
-    Returns:
-        List of full message objects
-    """
-    print(f"batch_get_gmail_messages runs for {len(message_ids)} messages")
-    try:
-        if not message_ids:
-            return []
-
-        # Create Gmail service
-        gmail_service = create_gmail_service(user_oauth_data)
-
-        full_messages = []
-        batch_size = 50  # Process messages in batches of 50
-
-        # Process messages in batches
-        for i in range(0, len(message_ids), batch_size):
-            batch_ids = message_ids[i : i + batch_size]
-            batch_results = {}
-
-            # Create a batch request
-            batch = gmail_service.new_batch_http_request()
-
-            # Add callback function to process each response
-            def callback_factory(msg_id):
-                def callback(request_id, response, exception):
-                    if exception:
-                        print(f"Error fetching message {msg_id}: {exception}")
-                    else:
-                        batch_results[msg_id] = response
-
-                return callback
-
-            # Add each message to the batch
-            for msg_id in batch_ids:
-                batch.add(gmail_service.users().messages().get(userId="me", id=msg_id, format="full"), callback=callback_factory(msg_id))
-
-            # Execute the batch request
-            batch.execute()
-
-            # Add results to full_messages
-            for msg_id in batch_ids:
-                if msg_id in batch_results:
-                    full_messages.append(batch_results[msg_id])
-
-            print(f"Processed batch {i//batch_size + 1}, fetched {len(batch_results)} messages")
-
-        return full_messages
-
-    except Exception as e:
-        print(f"Error batch getting Gmail messages: {str(e)}")
-        print(traceback.format_exc())
-        raise UserOauthError(error_detail_message=f"Failed to batch get Gmail messages: {str(e)}")
-
-
-# -----------------------------------------------------------------------------------------------------------------------
-
-
 # All the Processing happens here:
 # 1. get the new history id with all the delta messages occurred
 # 2. filtering process to only user's gmail-type contacts under all active project
-# 3. fetch full messages
+# 3. fetch all full messages through batch
 # 4. filter which message should be saved in db for only the "contacts" from "gmail channel" under "active project" for this user
 async def process_gmail_history_changes(
     supabase: AsyncClient, user_id: UUID, user_email_address: str, current_user_gmail_history_id: str, user_oauth_data: Dict[str, Any]
@@ -195,7 +131,7 @@ async def process_gmail_history_changes(
     print(f"process_gmail_history_changes runs for user: {user_id}, starting from history_id: {current_user_gmail_history_id}")
     try:
         # Get history changes
-        history_delta_result = get_gmail_history_delta_and_msg_ids(user_oauth_data, current_user_gmail_history_id)
+        history_delta_result = get_gmail_history_delta_msg_ids(user_oauth_data, current_user_gmail_history_id)
         new_history_id = history_delta_result["history_id"]
         delta_message_ids = history_delta_result["message_ids"]
 
@@ -267,7 +203,7 @@ async def process_gmail_history_changes(
 
         # Batch get all the full messages
         # need to use full message to compare if any of these messaage are from target contact(s) within all gmail channels under active project for this user
-        full_messages = batch_get_gmail_messages(user_oauth_data, delta_message_ids)
+        full_messages = batch_get_gmail_full_messages(user_oauth_data, delta_message_ids)
 
         if not full_messages:
             print(f"No full messages retrieved for user {user_id}")
