@@ -7,11 +7,11 @@ from fastapi import Request
 from supabase._async.client import AsyncClient
 from app.custom_error import GeneralServerError
 from app.services.user_oauth_credential_services import get_user_oauth_credentials_by_channel_type, update_user_oauth_credentials_by_channel_type
-from app.utils.gmail.gmail_history_helpers import get_gmail_history_delta_and_msg_ids, batch_get_gmail_messages
+from app.utils.gmail.gmail_notification_helpers import get_gmail_history_delta_and_msg_ids, batch_get_gmail_messages
 from app.utils.gmail.gmail_msg_helpers import transform_fetched_full_gmail_message
 
 
-# this is the process logic that will be only triggered by the Gmail Pub/Sub notification sent by Google
+# this is the process logic that will be only triggered by each of the Gmail Pub/Sub notification sent by Google
 async def process_gmail_pub_sub_notifications(request: Request, supabase: AsyncClient) -> Dict[str, Any]:
     """
     Handle and process Gmail notifications sent by Google Pub/Sub.

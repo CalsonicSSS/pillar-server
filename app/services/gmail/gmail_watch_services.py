@@ -5,6 +5,7 @@ from supabase._async.client import AsyncClient
 from app.custom_error import DataBaseError, GeneralServerError, UserOauthError
 from app.services.user_oauth_credential_services import get_user_oauth_credentials_by_channel_type, update_user_oauth_credentials_by_channel_type
 from app.utils.gmail.gmail_watch_helpers import start_gmail_watch, stop_gmail_watch, is_gmail_watch_expired
+from app.utils.generals import logger
 
 
 async def start_gmail_user_watch(supabase: AsyncClient, user_id: UUID) -> Dict[str, Any]:
@@ -41,7 +42,7 @@ async def start_gmail_user_watch(supabase: AsyncClient, user_id: UUID) -> Dict[s
         user_gmail_oauth_data["watch_info"] = {
             "expiration": watch_result["expiration"],
             "topic_name": watch_result["topic_name"],
-            "current_history_at": watch_result["history_id"],
+            "starting_history_id": watch_result["history_id"],
         }
 
         # Update OAuth data with new the historyId from watch response
@@ -148,8 +149,10 @@ async def check_and_renew_gmail_user_watch(supabase: AsyncClient, user_id: UUID)
             user_gmail_oauth_data["watch_info"] = {
                 "expiration": watch_result["expiration"],
                 "topic_name": watch_result["topic_name"],
-                "history_id_started_at": watch_result["history_id"],
+                "starting_history_id": watch_result["history_id"],
             }
+
+            user_gmail_oauth_data["user_info"]["historyId"] = watch_result["history_id"]
 
             # Save updated OAuth data
             await update_user_oauth_credentials_by_channel_type(supabase, user_id, "gmail", user_gmail_oauth_data)
@@ -173,3 +176,67 @@ async def check_and_renew_gmail_user_watch(supabase: AsyncClient, user_id: UUID)
     except Exception as e:
         print(traceback.format_exc())
         raise GeneralServerError(error_detail_message=f"Failed to check/renew Gmail watch: {str(e)}")
+
+
+# ###################################################################################################################
+
+
+async def schedule_gmail_watch_renewals(supabase: AsyncClient) -> None:
+    """
+    Scheduled job to check and renew expiring Gmail watches.
+    This function should be run daily to ensure continuous monitoring.
+
+    Args:
+        supabase: Supabase client
+    """
+
+    logger.info("Running scheduled Gmail watch renewals check...")
+
+    try:
+        # Query all Gmail OAuth credentials
+        oauth_credentials_result = await supabase.table("user_oauth_credentials").select("*").eq("channel_type", "gmail").execute()
+
+        if not oauth_credentials_result.data:
+            logger.info("No Gmail OAuth credentials found, nothing to renew")
+            return
+
+        renewal_count = 0
+        error_count = 0
+
+        # Check each credential for watch expiration
+        for credential in oauth_credentials_result.data:
+            try:
+                user_id = credential.get("user_id")
+                oauth_data = credential.get("oauth_data", {})
+                watch_info = oauth_data.get("watch_info", {})
+
+                # Skip if no watch is set up
+                if not watch_info or "expiration" not in watch_info:
+                    logger.info(f"No watch info for user {user_id}, skipping")
+                    continue
+
+                # Check if watch is expiring within 24 hours
+                expiration = watch_info.get("expiration")
+                if is_gmail_watch_expired(expiration, buffer_hours=24):
+                    logger.info(f"Watch for user {user_id} expiring soon, renewing...")
+
+                    # Renew the watch
+                    renewal_result = await check_and_renew_gmail_user_watch(supabase, UUID(user_id))
+
+                    if renewal_result.get("status") == "renewed":
+                        renewal_count += 1
+                        logger.info(f"Successfully renewed watch for user {user_id}")
+                    else:
+                        logger.info(f"Watch renewal skipped for user {user_id}: {renewal_result.get('message')}")
+
+            except Exception as e:
+                error_count += 1
+                logger.error(f"Error checking/renewing watch for credential {credential.get('id')}: {str(e)}")
+                logger.error(traceback.format_exc())
+                continue
+
+        logger.info(f"Gmail watch renewal completed. Renewed: {renewal_count}, Errors: {error_count}")
+
+    except Exception as e:
+        logger.error(f"Error in Gmail watch renewal scheduler: {str(e)}")
+        logger.error(traceback.format_exc())

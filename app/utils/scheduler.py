@@ -5,6 +5,7 @@ import traceback
 from typing import Dict, Any
 from supabase._async.client import AsyncClient
 from app.services.timeline_recap_services import schedule_daily_recaps_update, schedule_weekly_recaps_update
+from app.services.gmail.gmail_watch_services import schedule_gmail_watch_renewals
 from app.utils.generals import logger
 
 # Global scheduler instance
@@ -18,6 +19,7 @@ def init_scheduler(supabase: AsyncClient) -> None:
     According to the requirements, we need to:
     - Run daily updates at 8:00am UTC every day
     - Run weekly updates on Mondays at 8:00am UTC
+    - Check and renew Gmail watches daily at 1:00am UTC
     """
     logger.info("Initializing scheduler...")
 
@@ -37,6 +39,16 @@ def init_scheduler(supabase: AsyncClient) -> None:
         CronTrigger(day_of_week="mon", hour=8, minute=0),
         args=[supabase],
         id="weekly_recap_update",
+        replace_existing=True,
+        misfire_grace_time=3600,  # Allow up to 1 hour of misfire grace time
+    )
+
+    # Gmail watch renewal check at 1:00am UTC every day
+    scheduler.add_job(
+        schedule_gmail_watch_renewals,
+        CronTrigger(hour=1, minute=0),
+        args=[supabase],
+        id="gmail_watch_renewal",
         replace_existing=True,
         misfire_grace_time=3600,  # Allow up to 1 hour of misfire grace time
     )
