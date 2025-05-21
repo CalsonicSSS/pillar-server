@@ -6,7 +6,6 @@ from uuid import UUID
 
 class MessageBase(BaseModel):
     platform_message_id: str
-    channel_id: UUID
     contact_id: UUID  # Direct reference to the contact
     sender_email: str
     recipient_emails: List[str]

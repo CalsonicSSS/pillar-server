@@ -86,16 +86,14 @@ async def fetch_and_store_gmail_messages_from_all_contacts(
             for contact_full_gmail_message in contact_full_gmail_messages:
                 try:
                     # Process Gmail message
-                    transformed_message_data = transform_fetched_full_gmail_message(
-                        contact_full_gmail_message, str(channel_id), str(contact_id), user_gmail
-                    )
+                    transformed_message_data = transform_fetched_full_gmail_message(contact_full_gmail_message, str(contact_id), user_gmail)
 
                     # Check if message already exists
                     existing_stored_message = (
                         await supabase.table("messages")
                         .select("id")
                         .eq("platform_message_id", transformed_message_data["platform_message_id"])
-                        .eq("channel_id", str(channel_id))
+                        .eq("contact_id", str(contact_id))
                         .execute()
                     )
 

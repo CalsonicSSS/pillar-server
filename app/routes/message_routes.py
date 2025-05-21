@@ -22,23 +22,27 @@ async def get_messages_with_filters_handler(
     is_from_contact: Optional[bool] = Query(None),
     limit: int = Query(50),
     offset: int = Query(0),
-    supabase: AsyncClient = Depends(get_async_supabase_client),
     user_id: UUID = Depends(verify_jwt_and_get_user_id),
+    supabase: AsyncClient = Depends(get_async_supabase_client),
 ):
     print("/messages GET route reached")
-    filter_params = {
-        "project_id": project_id,
-        "channel_id": channel_id,
-        "contact_id": contact_id,
-        "thread_id": thread_id,
-        "start_date": start_date,
-        "end_date": end_date,
-        "is_read": is_read,
-        "is_from_contact": is_from_contact,
-        "limit": limit,
-        "offset": offset,
-    }
-    return await get_messages_with_filters(supabase, user_id, filter_params)
+
+    return await get_messages_with_filters(
+        supabase,
+        user_id,
+        {
+            "project_id": project_id,
+            "channel_id": channel_id,
+            "contact_id": contact_id,
+            "thread_id": thread_id,
+            "start_date": start_date,
+            "end_date": end_date,
+            "is_read": is_read,
+            "is_from_contact": is_from_contact,
+            "limit": limit,
+            "offset": offset,
+        },
+    )
 
 
 @general_message_router.get("/{message_id}", response_model=Dict[str, Any])

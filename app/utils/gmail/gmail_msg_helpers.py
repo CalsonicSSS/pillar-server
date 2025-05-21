@@ -28,7 +28,8 @@ def fetch_full_gmail_messages_for_contact_in_date_range(
         query = f"(from:{contact_email} OR to:{contact_email}) after:{start_date} before:{next_day}"
         print(f"Query: {query}")
 
-        # Get raw messages within first page with max_result
+        # Get raw messages within first page
+        # maxResults: maximum number of email messages the Gmail API will return in this single API call.
         initial_response = gmail_service.users().messages().list(userId="me", q=query, maxResults=min(max_results, 100)).execute()
         print(f"First raw fetch Response: {initial_response}")
 
@@ -55,6 +56,7 @@ def fetch_full_gmail_messages_for_contact_in_date_range(
         if not fetched_raw_messages:
             return []
 
+        # --------------------------------------------------------------------------------
         # Fetch full messages using batch requests
         fetched_full_messages = []
         batch_size = 50  # Google recommends 50-100 requests per batch
@@ -234,15 +236,12 @@ def get_gmail_body(fetched_full_gmail_message, supabase_message_data):
 # -------------------------------------------------------------------------------------------------------------------------------------
 
 
-def transform_fetched_full_gmail_message(
-    fetched_full_gmail_message: Dict[str, Any], channel_id: str, contact_id: str, user_email: str
-) -> Dict[str, Any]:
+def transform_fetched_full_gmail_message(fetched_full_gmail_message: Dict[str, Any], contact_id: str, user_email: str) -> Dict[str, Any]:
     """
     Process a Gmail message into our application's format.
 
     Args:
         gmail_message: Gmail API message object
-        channel_id: Channel ID
         contact_id: Contact ID
         user_email: User's email to determine message direction
 
@@ -253,7 +252,6 @@ def transform_fetched_full_gmail_message(
     # Default message data
     supabase_message_data = {
         "platform_message_id": fetched_full_gmail_message["id"],
-        "channel_id": channel_id,
         "contact_id": contact_id,
         "thread_id": fetched_full_gmail_message.get("threadId"),
         "sender_account": "",
@@ -264,7 +262,6 @@ def transform_fetched_full_gmail_message(
         "registered_at": datetime.now().isoformat(),  # change later
         "is_read": False,
         "is_from_contact": False,
-        "channel_type": "gmail",
     }
 
     # Process internal date
