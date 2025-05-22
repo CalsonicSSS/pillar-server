@@ -284,9 +284,9 @@ async def process_gmail_history_changes(
                     transformed_message = transform_fetched_full_gmail_message(full_message, contact_id, user_email_address)
 
                     # Insert the message
-                    message_result = await supabase.table("messages").insert(transformed_message).execute()
+                    result = await supabase.table("messages").insert(transformed_message).execute()
 
-                    if message_result.data:
+                    if result.data:
                         messages_saved += 1
                         print(f"Saved message {message_id} for contact {contact_id} in channel {channel_id}")
 

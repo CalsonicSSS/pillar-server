@@ -90,24 +90,24 @@ async def fetch_and_store_gmail_messages_from_all_contacts(
 
             for contact_full_msg in contact_full_msgs:
                 try:
-                    # Process Gmail message
-                    transformed_message_data = transform_fetched_full_gmail_message(contact_full_msg, str(contact_id), user_gmail)
-
                     # Check if message already exists
-                    existing_stored_message = (
+                    existing_message = (
                         await supabase.table("messages")
                         .select("id")
-                        .eq("platform_message_id", transformed_message_data["platform_message_id"])
+                        .eq("platform_message_id", contact_full_msg["id"])
                         .eq("contact_id", str(contact_id))
                         .execute()
                     )
 
-                    if existing_stored_message.data:
-                        # Skip existing messages
+                    if existing_message.data:
+                        print(f"Message {contact_full_msg['id']} already exists, skipping")
                         continue
 
+                    # Process Gmail message
+                    transformed_message = transform_fetched_full_gmail_message(contact_full_msg, str(contact_id), user_gmail)
+
                     # Store message in database
-                    result = await supabase.table("messages").insert(transformed_message_data).execute()
+                    result = await supabase.table("messages").insert(transformed_message).execute()
 
                     if result.data:
                         saved_count += 1
