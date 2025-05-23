@@ -22,6 +22,7 @@ def start_gmail_watch(oauth_data: Dict[str, Any], topic_name: str = "projects/pi
         gmail_service = create_gmail_service(oauth_data)
 
         # Set up watch request
+        # this will only trigger INBOX (as gmail label) change for pub/sub notification
         watch_request = {"topicName": topic_name, "labelIds": ["INBOX"], "labelFilterAction": "include"}  # Only watch INBOX for now
 
         # Start watching

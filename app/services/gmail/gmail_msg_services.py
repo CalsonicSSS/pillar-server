@@ -7,15 +7,13 @@ from supabase._async.client import AsyncClient
 from app.custom_error import DataBaseError, GeneralServerError, UserAuthError, UserOauthError
 from app.utils.gmail.gmail_msg_helpers import (
     fetch_gmail_msg_ids_for_contact_in_date_range,
-    transform_fetched_full_gmail_message,
+    transform_and_process_fetched_full_gmail_message_with_attachments,
     batch_get_gmail_full_messages,
 )
 from app.services.user_oauth_credential_services import get_user_oauth_credentials_by_channel_type
 
 
-# this function will be run whenever a new contact is added by user in the frontend
-# this works either for initial project creation or dynamically when a new contact(s) is added
-# front end will only send the newly added contact(s) id to this function EACH TIME (no previous added contact ids)
+# this function will be run whenever a new contact is added by user in the frontend after a project is created under a gmail channel is connected
 async def fetch_and_store_gmail_messages_from_all_contacts(
     supabase: AsyncClient, channel_id: UUID, contact_ids: List[UUID], start_date: datetime, user_id: UUID
 ) -> Dict[str, Any]:
@@ -69,7 +67,7 @@ async def fetch_and_store_gmail_messages_from_all_contacts(
             start_date_str = start_date.strftime("%Y/%m/%d")
             end_date_str = datetime.now()
 
-            # Fetch all message ids for this contact within the date range
+            # Fetch all message ids for this specific contact within the date range
             print(f"Fetching messages for contact: {contact_identifier}")
             contact_msg_ids = fetch_gmail_msg_ids_for_contact_in_date_range(
                 oauth_data=user_gmail_oauth_data,
@@ -104,10 +102,12 @@ async def fetch_and_store_gmail_messages_from_all_contacts(
                         continue
 
                     # Process Gmail message
-                    transformed_message = transform_fetched_full_gmail_message(contact_full_msg, str(contact_id), user_gmail)
+                    processed_message = await transform_and_process_fetched_full_gmail_message_with_attachments(
+                        contact_full_msg, str(contact_id), user_gmail, user_gmail_oauth_data, supabase
+                    )
 
                     # Store message in database
-                    result = await supabase.table("messages").insert(transformed_message).execute()
+                    result = await supabase.table("messages").insert(processed_message).execute()
 
                     if result.data:
                         saved_count += 1

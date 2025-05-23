@@ -6,7 +6,7 @@ from uuid import UUID
 from fastapi import Request
 from supabase._async.client import AsyncClient
 from app.utils.gmail.gmail_notification_helpers import get_gmail_history_delta_msg_ids
-from app.utils.gmail.gmail_msg_helpers import transform_fetched_full_gmail_message, batch_get_gmail_full_messages
+from app.utils.gmail.gmail_msg_helpers import transform_and_process_fetched_full_gmail_message_with_attachments, batch_get_gmail_full_messages
 from app.services.user_oauth_credential_services import update_user_oauth_credentials_by_channel_type
 from app.custom_error import GeneralServerError
 
@@ -31,7 +31,6 @@ async def process_gmail_pub_sub_notifications(request: Request, supabase: AsyncC
         # Print for debugging
         print("Received Gmail notification payload:", pub_sub_notification_request_payload)
 
-        # The actual message data is base64 encoded
         if "message" in pub_sub_notification_request_payload and "data" in pub_sub_notification_request_payload["message"]:
             # Decode the base64 data
             message_data_decoded = base64.b64decode(pub_sub_notification_request_payload["message"]["data"]).decode("utf-8")
@@ -49,7 +48,7 @@ async def process_gmail_pub_sub_notifications(request: Request, supabase: AsyncC
                 print("Missing email_address or history_id in notification")
                 return {"status": "error", "message": "Missing required gmail notification data"}
 
-            # Find the user by matching the email address in OAuth data for only the Gmail channel through rpc
+            # Find the specific user (whom) by matching the email address in OAuth data for only the Gmail channel through rpc
             user_gmail_oauth_credentials_query_result = await supabase.rpc(
                 "get_user_gmail_oauth_by_gmail_address", {"email_address": user_email_address}
             ).execute()
@@ -60,6 +59,7 @@ async def process_gmail_pub_sub_notifications(request: Request, supabase: AsyncC
 
             target_user_oauth_credentials = user_gmail_oauth_credentials_query_result.data[0]
 
+            # get the user_id from the oauth credentials
             user_id = target_user_oauth_credentials["user_id"]
 
             # Current historyId from our stored credentials
@@ -79,10 +79,13 @@ async def process_gmail_pub_sub_notifications(request: Request, supabase: AsyncC
             # 2. filtering process to only user's gmail-type contacts under all active project
             # 3. fetch full messages
             # 4. filter which message should be saved in db for only the "contacts" from "gmail channel" under "active project" for this user
+            # 5. transform and process the message with attachments
 
             print(f"Processing Gmail history changes for user: {user_id}, starting from history_id: {current_user_gmail_history_id}")
 
             # Get history changes
+            # all msg id fetched from "get_gmail_history_delta_msg_ids" can potential from all possible contacts from user gmail channel
+            # so later we will need to filter out which messages are relevant to the user based on the only the chosen existing contacts
             history_delta_result = get_gmail_history_delta_msg_ids(target_user_oauth_credentials["oauth_data"], current_user_gmail_history_id)
             new_history_id = history_delta_result["history_id"]
             delta_message_ids = history_delta_result["message_ids"]
@@ -130,7 +133,7 @@ async def process_gmail_pub_sub_notifications(request: Request, supabase: AsyncC
                     "new_msg_saved": 0,
                 }
 
-            # filter 3: Get all contacts from Gmail channels
+            # filter 3: Get all contacts from ALL Gmail channel type only for all ACTIVE projects from THIS USER (this is the final filter we are looking for)
             contacts_result = (
                 await supabase.table("contacts")
                 .select("id, channel_id, account_identifier")
@@ -167,6 +170,8 @@ async def process_gmail_pub_sub_notifications(request: Request, supabase: AsyncC
             # Process and store relevant messages
             messages_saved = 0
 
+            # we need to analyze each full message to see if any of the contacts are involved
+            # if then, we will process, transform, and save the message to the database with attachments
             for full_message in full_messages:
                 # Extract email addresses from the message
                 headers = {}
@@ -197,7 +202,7 @@ async def process_gmail_pub_sub_notifications(request: Request, supabase: AsyncC
                             email = recipient.lower()
                         to_emails.append(email)
 
-                # Check if message is relevant (involves any of our contacts)
+                # Check if this message is relevant to any of our contacts in gmail channels cross all active projects
                 for channel_id, contacts in contacts_by_channel.items():
                     contact_emails = [c["account_identifier"].lower() for c in contacts]
 
@@ -232,11 +237,13 @@ async def process_gmail_pub_sub_notifications(request: Request, supabase: AsyncC
                             print(f"Message {message_id} already exists, skipping")
                             continue
 
-                        # Transform and store the message
-                        transformed_message = transform_fetched_full_gmail_message(full_message, contact_id, user_email_address)
+                        # Transform and store the message with attachments
+                        processed_message = await transform_and_process_fetched_full_gmail_message_with_attachments(
+                            full_message, contact_id, user_email_address, target_user_oauth_credentials["oauth_data"], supabase
+                        )
 
                         # Insert the message
-                        result = await supabase.table("messages").insert(transformed_message).execute()
+                        result = await supabase.table("messages").insert(processed_message).execute()
 
                         if result.data:
                             messages_saved += 1

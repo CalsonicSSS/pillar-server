@@ -5,8 +5,11 @@ import traceback
 from app.custom_error import UserOauthError
 from app.custom_error import UserOauthError
 from app.utils.gmail.gmail_api_service import create_gmail_service
+from supabase._async.client import AsyncClient
+from app.utils.gmail.gmail_attachment_helpers import process_gmail_attachments_with_storage
 
 
+# this function is to leverage gmail message list API to essentially get the list of message ids
 def fetch_gmail_msg_ids_for_contact_in_date_range(
     oauth_data: Dict[str, Any], start_date: str, end_date: datetime, contact_email: str, max_results: int = 1000
 ) -> List[Dict[str, Any]]:
@@ -23,13 +26,12 @@ def fetch_gmail_msg_ids_for_contact_in_date_range(
         next_day = (end_date + timedelta(days=1)).strftime("%Y/%m/%d")
         print(f"Start date: {start_date}, End date: {next_day}")
 
-        # Build search query
-        # as tested, after is inclusive and before is exclusive, so we have to do next day +1
+        # Build search query - DIRECT COMMUNICATION ONLY (no CC in search)
+        # Keep original approach focusing on direct FROM/TO communication
         query = f"(from:{contact_email} OR to:{contact_email}) after:{start_date} before:{next_day}"
         print(f"Query: {query}")
 
         # Get raw messages within first page
-        # maxResults: maximum number of email messages the Gmail API will return in this single API call.
         initial_response = gmail_service.users().messages().list(userId="me", q=query, maxResults=min(max_results, 100)).execute()
         print(f"First raw fetch Response: {initial_response}")
 
@@ -71,6 +73,8 @@ def fetch_gmail_msg_ids_for_contact_in_date_range(
 # -------------------------------------------------------------------------------------------------------------------------------------
 
 
+# this is the functions used in both initial gmail message fetch and pub/sub message fetch through batch for a full message.
+# format is set to format="full", so it will return the full message object with attachments
 def batch_get_gmail_full_messages(user_oauth_data: Dict[str, Any], message_ids: List[str]) -> List[Dict[str, Any]]:
     """
     Fetch full Gmail messages in batches using the Gmail API.
@@ -136,7 +140,9 @@ def batch_get_gmail_full_messages(user_oauth_data: Dict[str, Any], message_ids: 
 # -------------------------------------------------------------------------------------------------------------------------------------
 
 
-def get_gmail_body(fetched_full_gmail_message, supabase_message_data):
+# to extract and process, clean the body of the email from the fetched full gmail message.
+# only later used in the transform_and_process_fetched_full_gmail_message_with_attachments function
+def extract_and_process_gmail_body(fetched_full_gmail_message, supabase_message_data):
     """
     Extract email body from Gmail message with support for nested structures.
     Handles various MIME types and nested multipart messages.
@@ -262,19 +268,32 @@ def get_gmail_body(fetched_full_gmail_message, supabase_message_data):
 # -------------------------------------------------------------------------------------------------------------------------------------
 
 
-def transform_fetched_full_gmail_message(fetched_full_gmail_message: Dict[str, Any], contact_id: str, user_email: str) -> Dict[str, Any]:
+# this function is also used in both initial gmail message fetch and pub/sub message fetch after batching
+# the goal is to transform the fetched full gmail message into a format that can be stored in our database
+# also automatically retrieve and store message attachments if there is any
+async def transform_and_process_fetched_full_gmail_message_with_attachments(
+    fetched_full_gmail_message: Dict[str, Any],
+    contact_id: str,
+    user_email: str,
+    user_oauth_data: Dict[str, Any],  # NEW: Need OAuth data for attachment download
+    supabase: AsyncClient,  # NEW: Need Supabase client for storage
+) -> Dict[str, Any]:
     """
     Process a Gmail message into our application's format.
+    Downloads and stores attachments automatically.
 
     Args:
-        gmail_message: Gmail API message object
+        fetched_full_gmail_message: Gmail API message object
         contact_id: Contact ID
         user_email: User's email to determine message direction
+        user_oauth_data: User's Gmail OAuth credentials for attachment download
+        supabase: Supabase client for storage operations
 
     Returns:
         Processed message data for database storage
     """
-    print("transform_fetched_full_gmail_message runs...")
+    print("transform_fetched_full_gmail_message_with_attachments runs...")
+
     # Default message data
     supabase_message_data = {
         "platform_message_id": fetched_full_gmail_message["id"],
@@ -282,29 +301,30 @@ def transform_fetched_full_gmail_message(fetched_full_gmail_message: Dict[str, A
         "thread_id": fetched_full_gmail_message.get("threadId"),
         "sender_account": "",
         "recipient_accounts": [],
+        "cc_accounts": [],
         "subject": "",
         "body_text": "",
         "body_html": "",
-        "registered_at": datetime.now().isoformat(),  # change later
+        "registered_at": datetime.now().isoformat(),
         "is_read": False,
         "is_from_contact": False,
+        "attachments": [],
     }
 
-    # Process internal date
+    # Process internal date for registered_at
     if "internalDate" in fetched_full_gmail_message:
-        # internalDate is in milliseconds since epoch
         timestamp_ms = int(fetched_full_gmail_message["internalDate"])
         date_obj = datetime.fromtimestamp(timestamp_ms / 1000, tz=timezone.utc)
         supabase_message_data["registered_at"] = date_obj.isoformat()
 
-    # Process headers
+    # set up headers for below extraction
     headers = {}
     for header in fetched_full_gmail_message.get("payload", {}).get("headers", []):
         name = header.get("name", "").lower()
         value = header.get("value", "")
         headers[name] = value
 
-    # Get sender
+    # Extract sender
     if "from" in headers:
         from_value = headers["from"]
         if "<" in from_value:
@@ -312,10 +332,9 @@ def transform_fetched_full_gmail_message(fetched_full_gmail_message: Dict[str, A
         else:
             supabase_message_data["sender_account"] = from_value
 
-    # Determine if message is from contact
     supabase_message_data["is_from_contact"] = supabase_message_data["sender_account"].lower() != user_email.lower()
 
-    # Get recipients
+    # Extract TO headers for recipient_accounts
     if "to" in headers:
         to_value = headers["to"]
         recipients = to_value.split(",")
@@ -327,10 +346,31 @@ def transform_fetched_full_gmail_message(fetched_full_gmail_message: Dict[str, A
                 email = recipient
             supabase_message_data["recipient_accounts"].append(email)
 
-    # Get subject
+    # Extract CC headers for cc_accounts
+    if "cc" in headers:
+        cc_value = headers["cc"]
+        cc_recipients = cc_value.split(",")
+        for cc_recipient in cc_recipients:
+            cc_recipient = cc_recipient.strip()
+            if "<" in cc_recipient:
+                email = cc_recipient.split("<")[1].strip(">")
+            else:
+                email = cc_recipient
+            supabase_message_data["cc_accounts"].append(email)
+
     supabase_message_data["subject"] = headers.get("subject", "")
 
-    # Start extraction with the message payload
-    get_gmail_body(fetched_full_gmail_message, supabase_message_data)
+    # Extract message body
+    extract_and_process_gmail_body(fetched_full_gmail_message, supabase_message_data)
+
+    # Extract attachments metadata and process download for storage for this specific message
+    try:
+        attachment_metadata = await process_gmail_attachments_with_storage(fetched_full_gmail_message, contact_id, user_oauth_data, supabase)
+        supabase_message_data["attachments"] = attachment_metadata
+
+    except Exception as e:
+        print(f"Error processing attachments: {str(e)}")
+        # Don't fail the entire message processing if attachments fail
+        supabase_message_data["attachments"] = []
 
     return supabase_message_data

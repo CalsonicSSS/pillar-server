@@ -207,27 +207,14 @@ async def schedule_gmail_watch_renewals(supabase: AsyncClient) -> None:
         for credential in oauth_credentials_result.data:
             try:
                 user_id = credential.get("user_id")
-                oauth_data = credential.get("oauth_data", {})
-                watch_info = oauth_data.get("watch_info", {})
 
-                # Skip if no watch is set up
-                if not watch_info or "expiration" not in watch_info:
-                    logger.info(f"No watch info for user {user_id}, skipping")
-                    continue
+                renewal_result = await check_and_renew_gmail_user_watch(supabase, UUID(user_id))
 
-                # Check if watch is expiring within 24 hours
-                expiration = watch_info.get("expiration")
-                if is_gmail_watch_expired(expiration, buffer_hours=24):
-                    logger.info(f"Watch for user {user_id} expiring soon, renewing...")
-
-                    # Renew the watch
-                    renewal_result = await check_and_renew_gmail_user_watch(supabase, UUID(user_id))
-
-                    if renewal_result.get("status") == "renewed":
-                        renewal_count += 1
-                        logger.info(f"Successfully renewed watch for user {user_id}")
-                    else:
-                        logger.info(f"Watch renewal skipped for user {user_id}: {renewal_result.get('message')}")
+                if renewal_result.get("status") == "renewed":
+                    renewal_count += 1
+                    logger.info(f"Successfully renewed watch for user {user_id}")
+                else:
+                    logger.info(f"Watch status for user {user_id} is active, no renewal needed")
 
             except Exception as e:
                 error_count += 1
