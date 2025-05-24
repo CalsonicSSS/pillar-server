@@ -8,6 +8,7 @@ from app.utils.gmail.gmail_api_service import create_gmail_service
 def start_gmail_watch(oauth_data: Dict[str, Any], topic_name: str = "projects/pillar-mvp/topics/pillar-gmail-notifications") -> Dict[str, Any]:
     """
     Start watching a specific user Gmail account for real-time changes using the Watch API.
+    WATCHES BOTH INBOX AND SENT for complete conversation tracking.
 
     Args:
         oauth_data: User's Gmail OAuth credentials
@@ -21,14 +22,17 @@ def start_gmail_watch(oauth_data: Dict[str, Any], topic_name: str = "projects/pi
         # Create Gmail service
         gmail_service = create_gmail_service(oauth_data)
 
-        # Set up watch request
-        # this will only trigger INBOX (as gmail label) change for pub/sub notification
-        watch_request = {"topicName": topic_name, "labelIds": ["INBOX"], "labelFilterAction": "include"}  # Only watch INBOX for now
+        # UPDATED: Watch both INBOX (received) and SENT (user's sent messages)
+        watch_request = {
+            "topicName": topic_name,
+            "labelIds": ["INBOX", "SENT"],  # UPDATED: Now includes SENT messages
+            "labelFilterAction": "include",
+        }
 
         # Start watching
         watch_response = gmail_service.users().watch(userId="me", body=watch_request).execute()
 
-        print(f"Gmail watch started successfully: {watch_response}")
+        print(f"Gmail watch started successfully for INBOX + SENT: {watch_response}")
 
         return {
             "history_id": watch_response.get("historyId"),

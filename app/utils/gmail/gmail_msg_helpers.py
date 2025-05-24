@@ -3,22 +3,26 @@ from datetime import datetime, timezone, timedelta
 import base64
 import traceback
 from app.custom_error import UserOauthError
-from app.custom_error import UserOauthError
 from app.utils.gmail.gmail_api_service import create_gmail_service
 from supabase._async.client import AsyncClient
 from app.utils.gmail.gmail_attachment_helpers import process_gmail_attachments_with_storage
 
 
-# this function is to leverage gmail message list API to essentially get the list of message ids
+# this function is to leverage gmail message list API to essentially get the list of message ids between the user and target contact
 def fetch_gmail_msg_ids_for_contact_in_date_range(
     oauth_data: Dict[str, Any], start_date: str, end_date: datetime, contact_email: str, max_results: int = 1000
 ) -> List[Dict[str, Any]]:
     """
-    Fetch Gmail messages for a specific contact within a date range using batch requests.
+    Fetch Gmail messages for a specific contact within a date range.
+
+    CAPTURES BOTH DIRECTIONS:
+    - Messages FROM contact TO user (received messages)
+    - Messages FROM user TO contact (sent messages)
+
+    This gives complete conversation history for each tracked contact.
     """
-    print("fetch_raw_gmail_messages_for_contact_in_date_range runs...")
+    print("fetch_gmail_msg_ids_for_contact_in_date_range runs...")
     try:
-        # Create Gmail service
         gmail_service = create_gmail_service(oauth_data)
         if not gmail_service:
             return []
@@ -26,19 +30,18 @@ def fetch_gmail_msg_ids_for_contact_in_date_range(
         next_day = (end_date + timedelta(days=1)).strftime("%Y/%m/%d")
         print(f"Start date: {start_date}, End date: {next_day}")
 
-        # Build search query - DIRECT COMMUNICATION ONLY (no CC in search)
-        # Keep original approach focusing on direct FROM/TO communication
+        # Build search query - CAPTURES BOTH SENT AND RECEIVED
+        # from:{contact_email} = Messages FROM contact TO user (RECEIVED)
+        # to:{contact_email} = Messages FROM user TO contact (SENT)
         query = f"(from:{contact_email} OR to:{contact_email}) after:{start_date} before:{next_day}"
-        print(f"Query: {query}")
+        print(f"Query (both directions): {query}")
 
-        # Get raw messages within first page
         initial_response = gmail_service.users().messages().list(userId="me", q=query, maxResults=min(max_results, 100)).execute()
         print(f"First raw fetch Response: {initial_response}")
 
         fetched_raw_messages = initial_response.get("messages", [])
         next_page_token = initial_response.get("nextPageToken")
 
-        # Handle pagination if needed
         while next_page_token and len(fetched_raw_messages) < max_results:
             page_response = (
                 gmail_service.users()
@@ -53,7 +56,7 @@ def fetch_gmail_msg_ids_for_contact_in_date_range(
             if len(fetched_raw_messages) >= max_results:
                 break
 
-        print(f"Total raw message fetched: {len(fetched_raw_messages)}")
+        print(f"Total messages fetched (both sent + received): {len(fetched_raw_messages)}")
 
         if not fetched_raw_messages:
             return []
@@ -63,7 +66,6 @@ def fetch_gmail_msg_ids_for_contact_in_date_range(
 
     except UserOauthError:
         raise
-
     except Exception as e:
         print(f"Error fetching messages: {str(e)}")
         print(traceback.format_exc())

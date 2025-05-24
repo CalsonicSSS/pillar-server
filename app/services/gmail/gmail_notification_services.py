@@ -202,25 +202,31 @@ async def process_gmail_pub_sub_notifications(request: Request, supabase: AsyncC
                             email = recipient.lower()
                         to_emails.append(email)
 
-                # Check if this message is relevant to any of our contacts in gmail channels cross all active projects
+                # UPDATED: Check if message is relevant for ANY tracked contact
+                # This now handles BOTH directions clearly:
+                # 1. RECEIVED: Contact sends TO user
+                # 2. SENT: User sends TO contact
                 for channel_id, contacts in contacts_by_channel.items():
                     contact_emails = [c["account_identifier"].lower() for c in contacts]
 
-                    # Check if any contact is involved (as sender or recipient)
                     relevant_contact = None
+
+                    # CASE 1: Message FROM tracked contact TO user (RECEIVED MESSAGE)
                     if from_email and from_email in contact_emails:
-                        # Message FROM contact TO user
                         relevant_contact = next((c for c in contacts if c["account_identifier"].lower() == from_email), None)
-                    elif user_email_address.lower() == from_email and any(
-                        email in contact_emails for email in to_emails
-                    ):  # Message FROM user TO contact (and possibly others)
+                        print(f"Found RECEIVED message from contact: {from_email}")
+
+                    # CASE 2: Message FROM user TO tracked contact (SENT MESSAGE)
+                    elif user_email_address.lower() == from_email:
+                        # User sent this message, check if any tracked contact is in TO field
                         for to_email in to_emails:
                             if to_email in contact_emails:
                                 relevant_contact = next((c for c in contacts if c["account_identifier"].lower() == to_email), None)
+                                print(f"Found SENT message to contact: {to_email}")
                                 break
 
                     if relevant_contact:
-                        # This message involves a contact we care about
+                        # This message involves a tracked contact (either direction)
                         contact_id = relevant_contact["id"]
                         message_id = full_message["id"]
 
@@ -238,16 +244,18 @@ async def process_gmail_pub_sub_notifications(request: Request, supabase: AsyncC
                             continue
 
                         # Transform and store the message with attachments
-                        processed_message = await transform_and_process_fetched_full_gmail_message_with_attachments(
+                        transformed_message = await transform_and_process_fetched_full_gmail_message_with_attachments(
                             full_message, contact_id, user_email_address, target_user_oauth_credentials["oauth_data"], supabase
                         )
 
                         # Insert the message
-                        result = await supabase.table("messages").insert(processed_message).execute()
+                        result = await supabase.table("messages").insert(transformed_message).execute()
 
                         if result.data:
                             messages_saved += 1
-                            print(f"Saved message {message_id} for contact {contact_id} in channel {channel_id}")
+                            print(
+                                f"Saved message {message_id} for contact {contact_id} in channel {channel_id} (Direction: {'RECEIVED' if from_email in contact_emails else 'SENT'})"
+                            )
 
             # Update historyId after processing
             target_user_oauth_credentials["oauth_data"]["user_info"]["historyId"] = new_history_id
@@ -255,7 +263,7 @@ async def process_gmail_pub_sub_notifications(request: Request, supabase: AsyncC
 
             return {
                 "status": "success",
-                "message": "new Gmail pub/sub notification processed successfully",
+                "message": "Gmail pub/sub notification processed successfully",
                 "history_id": new_history_id,
                 "new_msg_saved": messages_saved,
             }
