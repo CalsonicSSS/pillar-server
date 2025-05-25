@@ -10,6 +10,7 @@ class ChannelBase(BaseModel):
 
 class ChannelCreate(ChannelBase):
     project_id: UUID
+    is_connected: bool
 
 
 class ChannelUpdate(BaseModel):
@@ -20,6 +21,13 @@ class ChannelResponse(ChannelBase):
     id: UUID
     project_id: UUID
     is_connected: bool
-    auth_data: Optional[Dict[str, Any]] = None
     created_at: datetime
     updated_at: datetime
+
+
+# --------------------------------------------------------------------------------------------------------------------------
+
+
+class ChannelDeletionResponse(BaseModel):
+    status: str
+    status_message: str

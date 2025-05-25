@@ -7,6 +7,7 @@ from fastapi import Request
 from supabase._async.client import AsyncClient
 
 
+# this handles the user creation and deletion event from the Clerk webhook post request
 async def manage_user_from_clerk(request: Request, supabase: AsyncClient) -> dict:
     print("manage_user_from_clerk service function runs")
 

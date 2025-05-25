@@ -45,8 +45,8 @@ async def create_user_oauth_credentials_by_channel_type(
             raise DataBaseError(error_detail_message=f"{channel_type} OAuth credentials already exist for user")
 
         # Create new credentials
-        new_credentials = {"user_id": str(user_id), "channel_type": channel_type, "oauth_data": oauth_data}
-        result = await supabase.table("user_oauth_credentials").insert(new_credentials).execute()
+        user_new_credentials = {"user_id": str(user_id), "channel_type": channel_type, "oauth_data": oauth_data}
+        result = await supabase.table("user_oauth_credentials").insert(user_new_credentials).execute()
 
         if not result.data:
             raise DataBaseError(error_detail_message="Failed to create OAuth credentials")

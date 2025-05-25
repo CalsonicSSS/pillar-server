@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, Body, Path
-from app.models.channel_models import ChannelCreate, ChannelResponse, ChannelUpdate
+from app.models.channel_models import ChannelCreate, ChannelResponse, ChannelUpdate, ChannelDeletionResponse
 from app.services.channel_services import get_project_channels, get_channel_by_id, update_channel, delete_channel
 from app.utils.app_states import get_async_supabase_client
 from typing import List
@@ -8,16 +8,6 @@ from supabase._async.client import AsyncClient
 from app.utils.user_auth import verify_jwt_and_get_user_id
 
 channel_router = APIRouter(prefix="/channels", tags=["channels"])
-
-
-# @channel_router.post("/", response_model=ChannelResponse)
-# async def create_channel_handler(
-#     channel_create: ChannelCreate = Body(...),
-#     supabase: AsyncClient = Depends(get_async_supabase_client),
-#     user_id: UUID = Depends(verify_jwt_and_get_user_id),
-# ):
-#     print("/channels POST route reached")
-#     return await create_channel(supabase, channel_create, user_id)
 
 
 @channel_router.get("/project/{project_id}", response_model=List[ChannelResponse])
@@ -51,7 +41,7 @@ async def update_channel_handler(
     return await update_channel(supabase, channel_id, user_id, channel_update)
 
 
-@channel_router.delete("/{channel_id}", response_model=dict)
+@channel_router.delete("/{channel_id}", response_model=ChannelDeletionResponse)
 async def delete_channel_handler(
     channel_id: UUID = Path(...),
     supabase: AsyncClient = Depends(get_async_supabase_client),

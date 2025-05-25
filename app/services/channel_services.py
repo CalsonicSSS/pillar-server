@@ -1,4 +1,4 @@
-from app.models.channel_models import ChannelCreate, ChannelUpdate, ChannelResponse
+from app.models.channel_models import ChannelCreate, ChannelUpdate, ChannelResponse, ChannelDeletionResponse
 from typing import List
 from uuid import UUID
 from supabase._async.client import AsyncClient
@@ -7,34 +7,32 @@ import traceback
 from datetime import datetime, timezone
 
 
-# async def create_channel(supabase: AsyncClient, new_channel_payload: ChannelCreate, user_id: UUID) -> ChannelResponse:
-#     print("create_channel service function runs")
-#     try:
-#         # First, verify the project belongs to the user
-#         project_result = await supabase.table("projects").select("id").eq("id", str(new_channel_payload.project_id)).eq("user_id", str(user_id)).execute()
+async def create_channel(supabase: AsyncClient, new_channel_payload: ChannelCreate, user_id: UUID) -> ChannelResponse:
+    print("create_channel service function runs")
+    try:
+        # First, verify the project belongs to the user
+        project_result = (
+            await supabase.table("projects").select("id").eq("id", str(new_channel_payload.project_id)).eq("user_id", str(user_id)).execute()
+        )
 
-#         if not project_result.data:
-#             raise UserAuthError(error_detail_message="Project not found or access denied")
+        if not project_result.data:
+            raise UserAuthError(error_detail_message="Project not found or access denied")
 
-#         # Create new channel
-#         channel_data = new_channel_payload.model_dump()
-#         channel_data["is_connected"] = False  # Default to not connected
-#         channel_data["auth_data"] = None  # Initialize empty auth data
+        # Create new channel
+        channel_data = new_channel_payload.model_dump()
 
-#         print("new_channel_data", channel_data)
+        channel_result = await supabase.table("channels").insert(channel_data).execute()
 
-#         result = await supabase.table("channels").insert(channel_data).execute()
+        if not channel_result.data:
+            raise DataBaseError(error_detail_message="Failed to create channel")
 
-#         if not result.data:
-#             raise DataBaseError(error_detail_message="Failed to create channel")
+        return ChannelResponse(**channel_result.data[0])
 
-#         return ChannelResponse(**result.data[0])
-
-#     except (DataBaseError, UserAuthError):
-#         raise
-#     except Exception as e:
-#         print(traceback.format_exc())
-#         raise GeneralServerError(error_detail_message="Something went wrong from our side. Please try again later.")
+    except (DataBaseError, UserAuthError):
+        raise
+    except Exception as e:
+        print(traceback.format_exc())
+        raise GeneralServerError(error_detail_message="Something went wrong from our side. Please try again later.")
 
 
 # --------------------------------------------------------------------------------------------------------------------------
@@ -67,9 +65,6 @@ async def get_project_channels(supabase: AsyncClient, project_id: UUID, user_id:
 async def get_channel_by_id(supabase: AsyncClient, channel_id: UUID, user_id: UUID) -> ChannelResponse:
     print("get_channel_by_id service function runs")
     try:
-        # Remote Procedure Call (RPC): create and store custom sql script under a function as REUSEABLE script that can be called.
-        # the goal of any verification rpc in this app is to check if the SPECIFIC USER has MATCHING access to the data.
-        # the logics behind the verification is that we use join (inner join) to filter as the way to check if the user has access to the data.
         channel_verification_result = await supabase.rpc(
             "get_channel_with_user_verification", {"channel_id_param": str(channel_id), "user_id_param": str(user_id)}
         ).execute()
@@ -103,7 +98,7 @@ async def update_channel(supabase: AsyncClient, channel_id: UUID, user_id: UUID,
             return channel
 
         # Update the channel
-        update_data["updated_at"] = (datetime.now(timezone.utc).isoformat(),)
+        update_data["updated_at"] = datetime.now(timezone.utc).isoformat()
         result = await supabase.table("channels").update(update_data).eq("id", str(channel_id)).execute()
 
         if not result.data:
@@ -121,7 +116,7 @@ async def update_channel(supabase: AsyncClient, channel_id: UUID, user_id: UUID,
 # --------------------------------------------------------------------------------------------------------------------------
 
 
-async def delete_channel(supabase: AsyncClient, channel_id: UUID, user_id: UUID) -> dict:
+async def delete_channel(supabase: AsyncClient, channel_id: UUID, user_id: UUID) -> ChannelDeletionResponse:
     print("delete_channel service function runs")
     try:
         await get_channel_by_id(supabase, channel_id, user_id)
@@ -132,7 +127,7 @@ async def delete_channel(supabase: AsyncClient, channel_id: UUID, user_id: UUID)
         if not result.data:
             raise DataBaseError(error_detail_message="Channel deletion failed")
 
-        return {"status": "success", "message": "Channel deleted successfully"}
+        return ChannelDeletionResponse(status="success", status_message="Channel deleted successfully")
 
     except (DataBaseError, UserAuthError):
         raise
