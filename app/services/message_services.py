@@ -4,9 +4,10 @@ import traceback
 from supabase._async.client import AsyncClient
 from app.custom_error import DataBaseError, GeneralServerError, UserAuthError
 from datetime import datetime, timezone
+from app.models.message_models import MessageResponse
 
 
-async def get_messages_with_filters(supabase: AsyncClient, user_id: UUID, filter_params: Dict[str, Any]) -> List[Dict[str, Any]]:
+async def get_messages_with_filters(supabase: AsyncClient, user_id: UUID, filter_params: Dict[str, Any]) -> List[MessageResponse]:
     """
     Get messages with filtering options using the RPC function.
     """
@@ -37,7 +38,7 @@ async def get_messages_with_filters(supabase: AsyncClient, user_id: UUID, filter
         raise GeneralServerError(error_detail_message="Failed to retrieve messages")
 
 
-async def get_message_by_id(supabase: AsyncClient, message_id: UUID, user_id: UUID) -> Dict[str, Any]:
+async def get_message_by_id(supabase: AsyncClient, message_id: UUID, user_id: UUID) -> MessageResponse:
     """
     Get a specific message by ID with user verification.
     """
@@ -58,10 +59,10 @@ async def get_message_by_id(supabase: AsyncClient, message_id: UUID, user_id: UU
 
     except Exception as e:
         print(traceback.format_exc())
-        raise GeneralServerError(error_detail_message="Failed to retrieve message")
+        raise GeneralServerError(error_detail_message="Failed to retrieve that message")
 
 
-async def mark_message_as_read(supabase: AsyncClient, message_id: UUID, user_id: UUID) -> Dict[str, Any]:
+async def mark_message_as_read(supabase: AsyncClient, message_id: UUID, user_id: UUID) -> MessageResponse:
     """
     Mark a message as read with user verification.
     """

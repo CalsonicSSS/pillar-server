@@ -4,6 +4,7 @@ from uuid import UUID
 from supabase._async.client import AsyncClient
 from app.custom_error import DataBaseError, GeneralServerError
 from app.utils.gmail.gmail_attachment_helpers import generate_safe_filename
+from app.models.document_models import DocumentUploadRequest, DocumentResponse
 
 
 async def upload_file_to_project_storage(
@@ -25,8 +26,8 @@ async def upload_file_to_project_storage(
     print(f"upload_file_to_project_storage runs for project {project_id}, file {filename}")
 
     try:
-        # Create file path: projects/{project_id}/attachments/{filename}
-        file_path = f"projects/{str(project_id)}/attachments/{filename}"
+        # Create file path: projects/{project_id}/{filename}
+        file_path = f"projects/{str(project_id)}/{filename}"
 
         # Upload to Supabase storage
         result = await supabase.storage.from_("project-attachments").upload(
@@ -46,16 +47,13 @@ async def upload_file_to_project_storage(
         raise GeneralServerError(error_detail_message=f"Failed to store attachment: {str(e)}")
 
 
+# --------------------------------------------------------------------------------------------------------------------------------
+
+
 async def create_document_record(
     supabase: AsyncClient,
-    project_id: UUID,
-    file_path: str,
-    safe_filename: str,  # UPDATED: Now using safe_filename
-    original_filename: str,  # NEW: Keep original for display
-    file_type: str,
-    file_size: int,
-    source: str,  # NEW: Track source of document
-) -> Dict[str, Any]:
+    new_document_payload: DocumentUploadRequest,
+) -> DocumentResponse:
     """
     Create a document record in the database linking to the stored file.
     SIMPLIFIED for MVP: No message_id field, project-level only.
@@ -73,30 +71,16 @@ async def create_document_record(
     Returns:
         Created document record
     """
-    print(f"create_document_record runs for {original_filename}")
+    print(f"create_document_record runs")
 
     try:
-        document_data = {
-            "project_id": str(project_id),
-            # "message_id": None,  # REMOVED for MVP simplification
-            "folder_id": None,  # No folder assignment for now
-            "safe_file_name": safe_filename,  # UPDATED: Using safe filename for consistency
-            "original_file_name": original_filename,  # NEW: Keep original for display
-            "file_path": file_path,
-            "file_type": file_type,
-            "file_size": file_size,
-            "source": source,  # NEW: Track document source
-        }
-
+        document_data = new_document_payload.model_dump()
         result = await supabase.table("documents").insert(document_data).execute()
 
         if not result.data:
             raise DataBaseError(error_detail_message="Failed to create document record")
 
-        document_record = result.data[0]
-        print(f"Created document record with ID: {document_record['id']}")
-
-        return document_record
+        return DocumentResponse(**result.data[0])
 
     except Exception as e:
         print(f"Error creating document record: {str(e)}")
@@ -104,36 +88,13 @@ async def create_document_record(
         raise DataBaseError(error_detail_message=f"Failed to create document record: {str(e)}")
 
 
-async def get_project_id_from_contact(supabase: AsyncClient, contact_id: UUID) -> UUID:
-    """
-    Helper to get project_id from contact_id for file organization.
-    RENAMED for clarity.
-
-    Args:
-        supabase: Supabase client
-        contact_id: Contact UUID
-
-    Returns:
-        Project UUID
-    """
-    try:
-        result = await supabase.table("contacts").select("channel_id, channels(project_id)").eq("id", str(contact_id)).execute()
-
-        if not result.data:
-            raise DataBaseError(error_detail_message="Contact not found")
-
-        project_id = result.data[0]["channels"]["project_id"]
-        return UUID(project_id)
-
-    except Exception as e:
-        print(f"Error getting project ID: {str(e)}")
-        raise DataBaseError(error_detail_message="Failed to get project information")
+# --------------------------------------------------------------------------------------------------------------------------------
 
 
 # Manual file upload helper
 async def upload_manual_file_to_project(
     supabase: AsyncClient, project_id: UUID, file_bytes: bytes, original_filename: str, content_type: str, user_id: UUID  # For access verification
-) -> Dict[str, Any]:
+) -> DocumentResponse:
     """
     Upload a manually selected file to a project.
 
@@ -160,9 +121,45 @@ async def upload_manual_file_to_project(
     # Upload to storage
     storage_result = await upload_file_to_project_storage(supabase, project_id, file_bytes, safe_filename, content_type)
 
-    # Create corresponding document record
-    document_record = await create_document_record(
-        supabase, project_id, storage_result["file_path"], safe_filename, original_filename, content_type, len(file_bytes), source="manual"
+    new_document_payload = DocumentUploadRequest(
+        project_id=project_id,
+        safe_file_name=safe_filename,
+        original_file_name=original_filename,
+        file_type=content_type,
+        file_size=len(file_bytes),
+        file_path=storage_result["file_path"],
+        source="manual",
+        folder_id=None,  # No folder support in MVP
     )
 
-    return document_record
+    # Create corresponding document record
+    return await create_document_record(supabase, new_document_payload)
+
+
+# --------------------------------------------------------------------------------------------------------------------------------
+
+
+async def get_project_id_from_contact(supabase: AsyncClient, contact_id: UUID) -> UUID:
+    """
+    Helper to get project_id from contact_id for file organization.
+    RENAMED for clarity.
+
+    Args:
+        supabase: Supabase client
+        contact_id: Contact UUID
+
+    Returns:
+        Project UUID
+    """
+    try:
+        result = await supabase.table("contacts").select("channel_id, channels(project_id)").eq("id", str(contact_id)).execute()
+
+        if not result.data:
+            raise DataBaseError(error_detail_message="Contact not found")
+
+        project_id = result.data[0]["channels"]["project_id"]
+        return UUID(project_id)
+
+    except Exception as e:
+        print(f"Error getting project ID: {str(e)}")
+        raise DataBaseError(error_detail_message="Failed to get project information")

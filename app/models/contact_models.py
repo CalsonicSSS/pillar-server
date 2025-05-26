@@ -22,3 +22,11 @@ class ContactResponse(ContactBase):
     channel_id: UUID
     created_at: datetime
     updated_at: datetime
+
+
+# --------------------------------------------------------------------------------------------------------------------------
+
+
+class ContactDeletionResponse(BaseModel):
+    status: str
+    status_message: str

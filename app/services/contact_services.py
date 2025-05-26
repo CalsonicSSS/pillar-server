@@ -1,4 +1,4 @@
-from app.models.contact_models import ContactCreate, ContactUpdate, ContactResponse
+from app.models.contact_models import ContactCreate, ContactUpdate, ContactResponse, ContactDeletionResponse
 from typing import List
 from uuid import UUID
 from supabase._async.client import AsyncClient
@@ -39,6 +39,9 @@ async def create_contact(supabase: AsyncClient, new_contact_payload: ContactCrea
         raise GeneralServerError(error_detail_message="Something went wrong from our side. Please try again later.")
 
 
+# ------------------------------------------------------------------------------------------------------------------------
+
+
 async def get_channel_contacts(supabase: AsyncClient, channel_id: UUID, user_id: UUID) -> List[ContactResponse]:
     """
     Get all contacts for a specific channel.
@@ -65,6 +68,9 @@ async def get_channel_contacts(supabase: AsyncClient, channel_id: UUID, user_id:
         raise GeneralServerError(error_detail_message="Something went wrong from our side. Please try again later.")
 
 
+# ------------------------------------------------------------------------------------------------------------------------
+
+
 async def get_contact_by_id(supabase: AsyncClient, contact_id: UUID, user_id: UUID) -> ContactResponse:
     """
     Get a specific contact by ID.
@@ -89,6 +95,9 @@ async def get_contact_by_id(supabase: AsyncClient, contact_id: UUID, user_id: UU
         raise GeneralServerError(error_detail_message="Something went wrong from our side. Please try again later.")
 
 
+# ------------------------------------------------------------------------------------------------------------------------
+
+
 async def update_contact(supabase: AsyncClient, contact_id: UUID, user_id: UUID, contact_update: ContactUpdate) -> ContactResponse:
     """
     Update a specific contact.
@@ -96,16 +105,14 @@ async def update_contact(supabase: AsyncClient, contact_id: UUID, user_id: UUID,
     """
     print("update_contact service function runs")
     try:
-        contact = await get_contact_by_id(supabase, contact_id, user_id)
-
         # Get only non-None values to update
         update_data = {k: v for k, v in contact_update.model_dump().items() if v is not None}
 
         if not update_data:
             # If nothing to update, just return the current contact
-            return contact
+            return await get_contact_by_id(supabase, contact_id, user_id)
 
-        update_data["updated_at"] = (datetime.now(timezone.utc).isoformat(),)
+        update_data["updated_at"] = datetime.now(timezone.utc).isoformat()
         result = await supabase.table("contacts").update(update_data).eq("id", str(contact_id)).execute()
 
         if not result.data:
@@ -120,7 +127,10 @@ async def update_contact(supabase: AsyncClient, contact_id: UUID, user_id: UUID,
         raise GeneralServerError(error_detail_message="Something went wrong from our side. Please try again later.")
 
 
-async def delete_contact(supabase: AsyncClient, contact_id: UUID, user_id: UUID) -> dict:
+# ------------------------------------------------------------------------------------------------------------------------
+
+
+async def delete_contact(supabase: AsyncClient, contact_id: UUID, user_id: UUID) -> ContactDeletionResponse:
     """
     Delete a specific contact.
     Verifies that the contact belongs to a channel in a project owned by the user.
@@ -135,7 +145,7 @@ async def delete_contact(supabase: AsyncClient, contact_id: UUID, user_id: UUID)
         if not result.data:
             raise DataBaseError(error_detail_message="Contact deletion failed")
 
-        return {"status": "success", "message": "Contact deleted successfully"}
+        return ContactDeletionResponse(status="success", status_message="Contact deleted successfully")
 
     except (DataBaseError, UserAuthError):
         raise

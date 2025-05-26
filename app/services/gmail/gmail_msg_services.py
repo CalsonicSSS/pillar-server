@@ -11,16 +11,21 @@ from app.utils.gmail.gmail_msg_helpers import (
     batch_get_gmail_full_messages,
 )
 from app.services.user_oauth_credential_services import get_user_oauth_credentials_by_channel_type
+from app.models.oauth_process_models import GmailContactsInitialMessagesFetchRequest, GmailContactsInitialMessagesFetchResponse
 
 
 # this function will be run whenever a new contact is added by user in the frontend after a project is created under a gmail channel is connected
 async def fetch_and_store_gmail_messages_from_all_contacts(
-    supabase: AsyncClient, channel_id: UUID, contact_ids: List[UUID], start_date: datetime, user_id: UUID
-) -> Dict[str, Any]:
+    supabase: AsyncClient, gmail_message_fetch_info: GmailContactsInitialMessagesFetchRequest, user_id: UUID
+) -> GmailContactsInitialMessagesFetchResponse:
     """
     Fetch and store initial messages for a channel's contacts from start_date to now.
     """
     print("fetch_and_store_gmail_messages_from_all_contacts function runs")
+    channel_id = gmail_message_fetch_info.channel_id
+    contact_ids = gmail_message_fetch_info.contact_ids
+    start_date = gmail_message_fetch_info.start_date
+
     try:
         # Verify channel belongs to user's project
         channel_verification_result = await supabase.rpc(
@@ -35,7 +40,7 @@ async def fetch_and_store_gmail_messages_from_all_contacts(
         if not channel_data.get("is_connected", False):
             raise UserAuthError(error_detail_message="Channel not connected")
 
-        # Get gmail OAuth credentials from user level
+        # Get user specific gmail OAuth credentials from user level
         user_gmail_credentials = await get_user_oauth_credentials_by_channel_type(supabase, user_id, "gmail")
         if not user_gmail_credentials or not user_gmail_credentials.get("oauth_data"):
             raise UserAuthError(error_detail_message="User Gmail OAuth credentials not found")
@@ -83,7 +88,6 @@ async def fetch_and_store_gmail_messages_from_all_contacts(
             print(f"Found {len(contact_full_msgs)} full messages for contact: {contact_identifier}")
 
             # Process and store each message
-            total_messages_saved_count = 0
             saved_count = 0
 
             for contact_full_msg in contact_full_msgs:
@@ -117,22 +121,20 @@ async def fetch_and_store_gmail_messages_from_all_contacts(
                     print(f"Error processing message {contact_full_msg.get('id')}: {str(e)}")
                     print(traceback.format_exc())
 
-            total_messages_saved_count += saved_count
             print(f"Saved {saved_count} messages for contact {contact_identifier}")
 
             # Small delay between contacts to avoid rate limiting
             if contact_id != contact_ids[-1]:
                 await asyncio.sleep(0.5)
 
-        return {
-            "status": "success",
-            "total_messages_fetched_count": len(contact_full_msgs),
-            "total_messages_saved_count": total_messages_saved_count,
-        }
+        return GmailContactsInitialMessagesFetchResponse(
+            status="success",
+            status_message=f"Successfully fetched and stored initial messages for contacts: {contact_identifier}",
+        )
 
-    except (DataBaseError, UserAuthError, UserOauthError):
+    except (DataBaseError, UserAuthError, UserOauthError, GeneralServerError):
         raise
 
     except Exception as e:
         print(traceback.format_exc())
-        raise GeneralServerError(error_detail_message="Failed to fetch and store gmail messages")
+        raise GeneralServerError(error_detail_message="Failed to fetch and store initial gmail messages")

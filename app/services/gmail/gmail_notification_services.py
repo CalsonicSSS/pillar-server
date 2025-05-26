@@ -8,7 +8,6 @@ from supabase._async.client import AsyncClient
 from app.utils.gmail.gmail_notification_helpers import get_gmail_history_delta_msg_ids
 from app.utils.gmail.gmail_msg_helpers import transform_and_process_fetched_full_gmail_message_with_attachments, batch_get_gmail_full_messages
 from app.services.user_oauth_credential_services import update_user_oauth_credentials_by_channel_type
-from app.custom_error import GeneralServerError
 
 
 # this is the process logic that will be only triggered by each of the Gmail Pub/Sub notification http request sent by Google

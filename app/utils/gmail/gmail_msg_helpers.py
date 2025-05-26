@@ -2,7 +2,7 @@ from typing import Dict, List, Any, Optional
 from datetime import datetime, timezone, timedelta
 import base64
 import traceback
-from app.custom_error import UserOauthError
+from app.custom_error import UserOauthError, GeneralServerError
 from app.utils.gmail.gmail_api_service import create_gmail_service
 from supabase._async.client import AsyncClient
 from app.utils.gmail.gmail_attachment_helpers import process_gmail_attachments_with_storage
@@ -24,8 +24,6 @@ def fetch_gmail_msg_ids_for_contact_in_date_range(
     print("fetch_gmail_msg_ids_for_contact_in_date_range runs...")
     try:
         gmail_service = create_gmail_service(oauth_data)
-        if not gmail_service:
-            return []
 
         next_day = (end_date + timedelta(days=1)).strftime("%Y/%m/%d")
         print(f"Start date: {start_date}, End date: {next_day}")
@@ -66,10 +64,11 @@ def fetch_gmail_msg_ids_for_contact_in_date_range(
 
     except UserOauthError:
         raise
+
     except Exception as e:
-        print(f"Error fetching messages: {str(e)}")
+        print(f"Failed to fetch Gmail message ids for:{contact_email}.\n {str(e)}")
         print(traceback.format_exc())
-        raise
+        raise GeneralServerError(error_detail_message=f"Failed to fetch Gmail message ids for contact {contact_email}")
 
 
 # -------------------------------------------------------------------------------------------------------------------------------------

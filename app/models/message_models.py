@@ -43,6 +43,5 @@ class MessageFilter(BaseModel):
     end_date: Optional[datetime] = None
     is_read: Optional[bool] = None
     is_from_contact: Optional[bool] = None
-    has_attachments: Optional[bool] = None  # NEW: Filter by attachments
     limit: int = 50
     offset: int = 0

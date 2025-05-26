@@ -104,7 +104,7 @@ async def update_project(supabase: AsyncClient, project_id: UUID, user_id: UUID,
             project_update_data["avatar_letter"] = getProjectAvatarLetter(project_update_data["name"])
 
         project_update_data["updated_at"] = datetime.now(timezone.utc).isoformat()
-        result = await supabase.table("projects").update(project_update_data).eq("id", str(project_id)).eq("user_id", str(user_id)).execute()
+        result = await supabase.table("projects").update(project_update_data).eq("id", str(project_id)).execute()
 
         if not result.data:
             raise DataBaseError(error_detail_message="Project update failed")

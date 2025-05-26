@@ -4,7 +4,7 @@ from fastapi import UploadFile
 from supabase._async.client import AsyncClient
 from app.custom_error import DataBaseError, GeneralServerError, UserAuthError
 from app.utils.storage.supabase_storage_helpers import upload_manual_file_to_project
-from app.models.document_models import DocumentResponse
+from app.models.document_models import DocumentResponse, DocumentDeletionResponse, DocumentDownloadResponse
 import traceback
 
 
@@ -22,9 +22,7 @@ async def upload_document_to_project(supabase: AsyncClient, project_id: UUID, up
         content_type = uploaded_file.content_type or "application/octet-stream"
 
         # Upload and create document record
-        document_record = await upload_manual_file_to_project(supabase, project_id, file_content, filename, content_type, user_id)
-
-        return DocumentResponse(**document_record)
+        return await upload_manual_file_to_project(supabase, project_id, file_content, filename, content_type, user_id)
 
     except (DataBaseError, UserAuthError):
         raise
@@ -63,7 +61,7 @@ async def get_project_documents(
         raise GeneralServerError(error_detail_message="Failed to retrieve documents")
 
 
-async def delete_document(supabase: AsyncClient, document_id: UUID, user_id: UUID) -> Dict[str, str]:
+async def delete_document(supabase: AsyncClient, document_id: UUID, user_id: UUID) -> DocumentDeletionResponse:
     """
     Delete a document from both database and storage.
     """
@@ -84,7 +82,7 @@ async def delete_document(supabase: AsyncClient, document_id: UUID, user_id: UUI
         # Delete from database
         await supabase.table("documents").delete().eq("id", str(document_id)).execute()
 
-        return {"status": "success", "message": "Document deleted successfully"}
+        return DocumentDeletionResponse(status="success", status_message="Document deleted successfully")
 
     except UserAuthError:
         raise
@@ -111,15 +109,16 @@ async def download_document(supabase: AsyncClient, document_id: UUID, user_id: U
         # Generate signed URL (expires in 1 hour)
         signed_url_result = supabase.storage.from_("project-attachments").create_signed_url(file_path, expires_in=3600)
 
-        return {
-            "download_url": signed_url_result["signedURL"],
-            "filename": document["original_file_name"] or document["file_name"],
-            "file_type": document["file_type"],
-            "file_size": document["file_size"],
-        }
+        return DocumentDownloadResponse(
+            download_url=signed_url_result["signedURL"],
+            filename=document["safe_file_name"],
+            file_type=document["file_type"],
+            file_size=document["file_size"],
+        )
 
     except UserAuthError:
         raise
+
     except Exception as e:
         print(traceback.format_exc())
         raise GeneralServerError(error_detail_message="Failed to generate download URL")

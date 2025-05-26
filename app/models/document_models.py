@@ -9,6 +9,8 @@ class DocumentBase(BaseModel):
     original_file_name: Optional[str] = None
     file_type: str
     file_size: int
+    file_path: str
+    folder_id: Optional[UUID] = None
     source: Literal["email", "manual"]
 
 
@@ -20,7 +22,20 @@ class DocumentUploadRequest(BaseModel):
 class DocumentResponse(DocumentBase):
     id: UUID
     project_id: UUID
-    folder_id: Optional[UUID] = None
-    file_path: str
     created_at: datetime
     updated_at: datetime
+
+
+# ------------------------------------------------------------------------------
+
+
+class DocumentDeletionResponse(BaseModel):
+    status: str
+    status_message: str
+
+
+class DocumentDownloadResponse(BaseModel):
+    download_url: str
+    file_name: str
+    file_type: str
+    file_size: int

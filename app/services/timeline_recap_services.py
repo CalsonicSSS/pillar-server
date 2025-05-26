@@ -4,7 +4,12 @@ from datetime import datetime, timedelta, timezone
 import traceback
 from supabase._async.client import AsyncClient
 from app.custom_error import DataBaseError, GeneralServerError, UserAuthError
-from app.models.timeline_recap_models import RecapSummaryResponse, TimelineRecapResponse
+from app.models.timeline_recap_models import (
+    RecapSummaryResponse,
+    TimelineRecapResponse,
+    TimelineRecapDataStructureCreateResponse,
+    TimelineRecapSummaryGenResponse,
+)
 from app.utils.llm.timeline_recap_llm_helpers import generate_weekly_summary, generate_daily_summary
 from app.utils.generals import logger
 
@@ -61,7 +66,9 @@ async def get_project_timeline_recap(supabase: AsyncClient, project_id: UUID, us
 # This function mainly just to create 7 entries (3 daily + 4 weekly) as placeholder data structure in the database
 # this function should be fully AUTOMATICALLY called when a new project is created by user without user intervention
 # this setups the initial data structure for the timeline recap for later first time initialization and sheduled daily / weekly generation
-async def initialize_project_timeline_recap_data_structure(supabase: AsyncClient, project_id: UUID, user_id: UUID) -> Dict[str, Any]:
+async def initialize_project_timeline_recap_data_structure(
+    supabase: AsyncClient, project_id: UUID, user_id: UUID
+) -> TimelineRecapDataStructureCreateResponse:
     """
     Generate initial timeline recap data_structure for a project with 8:00am UTC as the daily boundary for the very first time only.
     """
@@ -82,7 +89,10 @@ async def initialize_project_timeline_recap_data_structure(supabase: AsyncClient
         )
 
         if existing_project_timeline_recap.data:
-            return {"status": "exists", "message": "Timeline recap already exists for this project"}
+            return TimelineRecapDataStructureCreateResponse(
+                status="error",
+                status_message="Timeline recap data structure already exists for this project",
+            )
 
         now_utc = datetime.now(timezone.utc)
         today_8am_utc = now_utc.replace(hour=8, minute=0, second=0, microsecond=0)
@@ -167,12 +177,10 @@ async def initialize_project_timeline_recap_data_structure(supabase: AsyncClient
         if not result.data:
             raise DataBaseError(error_detail_message="Failed to create timeline recap")
 
-        return {
-            "status": "success",
-            "message": "Timeline recap element structure initialized successfully",
-            "daily_count": len(daily_summaries),
-            "weekly_count": len(weekly_summaries),
-        }
+        return TimelineRecapDataStructureCreateResponse(
+            status="success",
+            status_message="Timeline recap element structure initialized successfully",
+        )
 
     except (DataBaseError, UserAuthError):
         raise
@@ -187,7 +195,9 @@ async def initialize_project_timeline_recap_data_structure(supabase: AsyncClient
 
 # this is the function that actually does the LLM summarization for EACH OF ALL fetched recap elements WITHIN A SPECIFIC PROJECT for only the "To be summarized" ones
 # Only after initialization can "generate_to_be_summarized_timeline_recap_summaries" be meaningfully called afterwards (This sequence is critical)
-async def generate_to_be_summarized_timeline_recap_summaries(supabase: AsyncClient, project_id: UUID, user_id: UUID) -> Dict[str, Any]:
+async def generate_to_be_summarized_timeline_recap_summaries(
+    supabase: AsyncClient, project_id: UUID, user_id: UUID
+) -> TimelineRecapSummaryGenResponse:
     print("generate_to_be_summarized_timeline_recap_summaries service runs")
     try:
         # First, verify the project belongs to the user
@@ -215,7 +225,10 @@ async def generate_to_be_summarized_timeline_recap_summaries(supabase: AsyncClie
             .execute()
         )
         if not recap_elements.data:
-            return {"status": "error", "message": "Recap elements not found or not eligible for generation", "generated_count": generated_count}
+            return TimelineRecapSummaryGenResponse(
+                status="error",
+                status_message="No timeline recap elements to summarize found for this project",
+            )
 
         project_timeline_recap_elements_to_generate = recap_elements.data
 
@@ -271,7 +284,10 @@ async def generate_to_be_summarized_timeline_recap_summaries(supabase: AsyncClie
 
             generated_count += 1
 
-        return {"status": "success", "message": f"Successfully generated {generated_count} summaries", "generated_count": generated_count}
+        return TimelineRecapSummaryGenResponse(
+            status="success",
+            status_message=f"Successfully generated {generated_count} summaries for project {project_id}",
+        )
 
     except UserAuthError:
         raise

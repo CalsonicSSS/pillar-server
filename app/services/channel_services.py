@@ -87,19 +87,17 @@ async def get_channel_by_id(supabase: AsyncClient, channel_id: UUID, user_id: UU
 async def update_channel(supabase: AsyncClient, channel_id: UUID, user_id: UUID, channel_update: ChannelUpdate) -> ChannelResponse:
     print("update_channel service function runs")
     try:
-        # First check if the channel belongs to a project owned by the user
-        channel = await get_channel_by_id(supabase, channel_id, user_id)
 
         # Get only non-None values to update
-        update_data = {k: v for k, v in channel_update.model_dump().items() if v is not None}
+        channel_update_data = {k: v for k, v in channel_update.model_dump().items() if v is not None}
 
-        if not update_data:
+        if not channel_update_data:
             # If nothing to update, just return the current channel
-            return channel
+            return await get_channel_by_id(supabase, channel_id, user_id)
 
         # Update the channel
-        update_data["updated_at"] = datetime.now(timezone.utc).isoformat()
-        result = await supabase.table("channels").update(update_data).eq("id", str(channel_id)).execute()
+        channel_update_data["updated_at"] = datetime.now(timezone.utc).isoformat()
+        result = await supabase.table("channels").update(channel_update_data).eq("id", str(channel_id)).execute()
 
         if not result.data:
             raise DataBaseError(error_detail_message="Channel update failed")

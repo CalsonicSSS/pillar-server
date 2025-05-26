@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, Body, Path
-from app.models.contact_models import ContactCreate, ContactResponse, ContactUpdate
+from app.models.contact_models import ContactCreate, ContactResponse, ContactUpdate, ContactDeletionResponse
 from app.services.contact_services import create_contact, get_channel_contacts, get_contact_by_id, update_contact, delete_contact
 from app.utils.app_states import get_async_supabase_client
 from typing import List
@@ -51,7 +51,7 @@ async def update_contact_handler(
     return await update_contact(supabase, contact_id, user_id, contact_update)
 
 
-@contact_router.delete("/{contact_id}", response_model=dict)
+@contact_router.delete("/{contact_id}", response_model=ContactDeletionResponse)
 async def delete_contact_handler(
     contact_id: UUID = Path(...),
     supabase: AsyncClient = Depends(get_async_supabase_client),
