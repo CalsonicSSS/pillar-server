@@ -3,8 +3,43 @@ from typing import Dict, Any, Optional
 from uuid import UUID
 from supabase._async.client import AsyncClient
 from app.custom_error import DataBaseError, GeneralServerError
-from app.utils.gmail.gmail_attachment_helpers import generate_safe_filename
 from app.models.document_models import DocumentUploadRequest, DocumentResponse
+import re
+from datetime import datetime
+
+
+# Email attachments can have problematic names
+# Timestamp suffix: Perfect for versioning! Same client might send "invoice.pdf" multiple times over months
+def generate_safe_filename(original_filename: str, timestamp_suffix: bool = True) -> str:
+    """
+    Generate a safe filename for storage, avoiding conflicts and special characters.
+
+    Args:
+        original_filename: Original filename from email
+        timestamp_suffix: Whether to add timestamp to avoid conflicts
+
+    Returns:
+        Safe filename for storage
+    """
+
+    # Remove or replace unsafe characters
+    safe_filename = re.sub(r'[<>:"/\\|?*]', "_", original_filename)
+
+    # Limit length
+    if len(safe_filename) > 150:
+        name, ext = safe_filename.rsplit(".", 1) if "." in safe_filename else (safe_filename, "")
+        safe_filename = name[:140] + ("." + ext if ext else "")
+
+    # Add timestamp suffix to avoid naming conflicts
+    if timestamp_suffix:
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        name, ext = safe_filename.rsplit(".", 1) if "." in safe_filename else (safe_filename, "")
+        safe_filename = f"{name}_{timestamp}" + ("." + ext if ext else "")
+
+    return safe_filename
+
+
+# --------------------------------------------------------------------------------------------------------------------------------
 
 
 async def upload_file_to_project_storage(
