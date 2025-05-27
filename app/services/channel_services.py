@@ -20,6 +20,7 @@ async def create_channel(supabase: AsyncClient, new_channel_payload: ChannelCrea
 
         # Create new channel
         channel_data = new_channel_payload.model_dump()
+        channel_data["project_id"] = str(channel_data["project_id"])
 
         channel_result = await supabase.table("channels").insert(channel_data).execute()
 

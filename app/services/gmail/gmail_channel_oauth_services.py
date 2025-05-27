@@ -1,4 +1,3 @@
-from typing import Dict, Any
 from uuid import UUID
 from supabase._async.client import AsyncClient
 import httpx
@@ -10,11 +9,11 @@ from app.services.user_oauth_credential_services import (
     update_user_oauth_credentials_by_channel_type,
     create_user_oauth_credentials_by_channel_type,
 )
-from datetime import datetime, timezone
 from app.services.gmail.gmail_watch_services import start_gmail_user_watch
 from app.models.channel_models import ChannelCreate
 from app.models.oauth_process_models import GmailOAuthFlowResponse, GmailOAuthCallbackCompletionResponse
 from app.services.channel_services import create_channel, update_channel
+from app.models.channel_models import ChannelUpdate
 
 
 # this is to create a new gmail channel within a specific project
@@ -104,7 +103,7 @@ async def initialize_gmail_channel_create_and_oauth(supabase: AsyncClient, proje
 # -----------------------------------------------------------------------------------------------------------------------
 
 
-async def gmail_reoauth_process(supabase: AsyncClient, user_id: UUID):
+async def gmail_channel_reoauth_process(supabase: AsyncClient, user_id: UUID):
     print("gmail_reoauth_process function runs")
     # find existing user's invalided credentials for Gmail type
     user_gmail_credentials = await get_user_oauth_credentials_by_channel_type(supabase, user_id, "gmail")
@@ -134,7 +133,7 @@ async def gmail_reoauth_process(supabase: AsyncClient, user_id: UUID):
 # this is only called when
 # 1. user has existing gmail oauth credentials and they are invalidated
 # 2. user has no existing gmail oauth credentials yet and this must means a new gmail channel created
-async def gmail_oauth_complete_callback(
+async def gmail_channel_oauth_complete_callback(
     supabase: AsyncClient, httpx_client: httpx.AsyncClient, auth_code: str, state: str
 ) -> GmailOAuthCallbackCompletionResponse:
     """
@@ -217,7 +216,8 @@ async def gmail_oauth_complete_callback(
         print("gmail initial oauth_data exchanged and stored complete:", user_oauth_data)
 
         # Update target channel as "connected"
-        await update_channel(supabase, channel_id, user_id, {"is_connected": True})
+        update_channel_data = ChannelUpdate(is_connected=True)
+        await update_channel(supabase, channel_id, user_id, update_channel_data)
 
         # start watching for the gmail channel for this user
         watch_result = await start_gmail_user_watch(supabase, UUID(user_id))

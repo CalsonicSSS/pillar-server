@@ -1,10 +1,10 @@
 from fastapi import APIRouter, Depends, Query, Path, Response
 from app.utils.app_states import get_async_supabase_client, get_async_httpx_client
 from app.utils.user_auth import verify_jwt_and_get_user_id
-from app.services.gmail.gmail_channel_services import (
+from app.services.gmail.gmail_channel_oauth_services import (
     initialize_gmail_channel_create_and_oauth,
-    gmail_oauth_complete_callback,
-    gmail_reoauth_process,
+    gmail_channel_oauth_complete_callback,
+    gmail_channel_reoauth_process,
 )
 from uuid import UUID
 from supabase._async.client import AsyncClient
@@ -36,18 +36,18 @@ async def refresh_gmail_oauth_handler(
     Clears existing invalid credentials.
     """
     print("/gmail/oauth/refresh POST route reached")
-    return await gmail_reoauth_process(supabase, user_id)
+    return await gmail_channel_reoauth_process(supabase, user_id)
 
 
 @gmail_channel_oauth_router.get("/callback", response_model=GmailOAuthCallbackCompletionResponse)
-async def gmail_oauth_complete_callback_handler(
+async def gmail_channel_oauth_complete_callback_handler(
     code: str = Query(...),
     state: str = Query(...),  # state parameter contains channel_id
     supabase: AsyncClient = Depends(get_async_supabase_client),
     httpx_client: AsyncClient = Depends(get_async_httpx_client),
 ):
     print("/gmail/oauth/callback GET route reached")
-    return await gmail_oauth_complete_callback(supabase, httpx_client, code, state)
+    return await gmail_channel_oauth_complete_callback(supabase, httpx_client, code, state)
 
     # # Return a basic success HTML page
     # # In production, this would redirect to a success page in your frontend
