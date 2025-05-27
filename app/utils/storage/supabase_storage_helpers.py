@@ -110,6 +110,7 @@ async def create_document_record(
 
     try:
         document_data = new_document_payload.model_dump()
+        document_data["project_id"] = str(document_data["project_id"])  # Ensure UUID is string
         result = await supabase.table("documents").insert(document_data).execute()
 
         if not result.data:

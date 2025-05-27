@@ -83,7 +83,7 @@ async def fetch_and_store_gmail_messages_from_all_contacts(
             )
 
             # batch get full messages for this contact
-            contact_full_msgs = batch_get_gmail_full_messages(oauth_data=user_gmail_oauth_data, message_ids=contact_msg_ids)
+            contact_full_msgs = batch_get_gmail_full_messages(user_oauth_data=user_gmail_oauth_data, message_ids=contact_msg_ids)
 
             print(f"Found {len(contact_full_msgs)} full messages for contact: {contact_identifier}")
 

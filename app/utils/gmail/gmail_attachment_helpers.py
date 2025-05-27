@@ -13,6 +13,7 @@ from app.utils.storage.supabase_storage_helpers import (
 )
 from uuid import UUID
 from supabase._async.client import AsyncClient
+from app.models.document_models import DocumentUploadRequest
 
 
 # extracts ALL attachments metadata only from a single email (emails can have multiple files)
@@ -182,15 +183,20 @@ async def process_gmail_attachments_with_storage(
             storage_result = await upload_file_to_project_storage(supabase, project_id, file_bytes, safe_filename, attachment_info["file_type"])
 
             # Create document record - UPDATED signature
+            new_document_payload = DocumentUploadRequest(
+                project_id=project_id,
+                safe_file_name=safe_filename,  # FIXED: added underscore
+                original_file_name=attachment_info["filename"],  # FIXED: added underscore
+                file_type=attachment_info["file_type"],
+                file_size=len(file_bytes),
+                file_path=storage_result["file_path"],
+                source="email",
+                folder_id=None,
+            )
+
             document_record = await create_document_record(
                 supabase,
-                project_id,
-                storage_result["file_path"],
-                safe_filename,  # Safe filename for storage consistency
-                attachment_info["filename"],  # Original filename for display
-                attachment_info["file_type"],
-                len(file_bytes),
-                source="email",  # Mark as email attachment
+                new_document_payload=new_document_payload,
             )
 
             # Update attachment metadata with document info
@@ -199,7 +205,7 @@ async def process_gmail_attachments_with_storage(
                 "file_type": attachment_info["file_type"],
                 "file_size": len(file_bytes),
                 "attachment_id": attachment_info["attachment_id"],
-                "document_id": document_record["id"],  # Now populated!
+                "document_id": str(document_record.id),  # ✅ FIXED: Access Pydantic model attribute
             }
 
             processed_attachments.append(processed_attachment)

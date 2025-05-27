@@ -5,8 +5,8 @@ from uuid import UUID
 
 
 class DocumentBase(BaseModel):
-    safe_file_name: str
-    original_file_name: Optional[str] = None
+    safe_file_name: str  # underscore
+    original_file_name: Optional[str] = None  # underscore
     file_type: str
     file_size: int
     file_path: str
@@ -14,9 +14,8 @@ class DocumentBase(BaseModel):
     source: Literal["email", "manual"]
 
 
-class DocumentUploadRequest(BaseModel):
+class DocumentUploadRequest(DocumentBase):
     project_id: UUID
-    # Note: File content will be handled separately via FastAPI's UploadFile
 
 
 class DocumentResponse(DocumentBase):
