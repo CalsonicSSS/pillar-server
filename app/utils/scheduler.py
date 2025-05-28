@@ -46,7 +46,7 @@ def init_scheduler(supabase: AsyncClient) -> None:
     # Gmail watch renewal check at 1:00am UTC every day
     scheduler.add_job(
         schedule_gmail_watch_renewals,
-        CronTrigger(hour=1, minute=0),
+        CronTrigger(hour=8, minute=0),
         args=[supabase],
         id="gmail_watch_renewal",
         replace_existing=True,
