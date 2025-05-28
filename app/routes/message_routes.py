@@ -6,7 +6,7 @@ from app.services.message_services import get_messages_with_filters, get_message
 from app.utils.app_states import get_async_supabase_client
 from supabase._async.client import AsyncClient
 from app.utils.user_auth import verify_jwt_and_get_user_id
-from app.models.message_models import MessageResponse
+from app.models.message_models import MessageResponse, MessageFilter, MessageUpdate
 
 general_message_router = APIRouter(prefix="/messages", tags=["messages"])
 
@@ -31,18 +31,18 @@ async def get_messages_with_filters_handler(
     return await get_messages_with_filters(
         supabase,
         user_id,
-        {
-            "project_id": project_id,
-            "channel_id": channel_id,
-            "contact_id": contact_id,
-            "thread_id": thread_id,
-            "start_date": start_date,
-            "end_date": end_date,
-            "is_read": is_read,
-            "is_from_contact": is_from_contact,
-            "limit": limit,
-            "offset": offset,
-        },
+        MessageFilter(
+            project_id=project_id,
+            channel_id=channel_id,
+            contact_id=contact_id,
+            thread_id=thread_id,
+            start_date=start_date,
+            end_date=end_date,
+            is_read=is_read,
+            is_from_contact=is_from_contact,
+            limit=limit,
+            offset=offset,
+        ),
     )
 
 
@@ -63,4 +63,4 @@ async def mark_message_as_read_handler(
     user_id: UUID = Depends(verify_jwt_and_get_user_id),
 ):
     print("/messages/{message_id}/read PATCH route reached")
-    return await mark_message_as_read(supabase, message_id, user_id)
+    return await mark_message_as_read(supabase, message_id, user_id, MessageUpdate(is_read=True))

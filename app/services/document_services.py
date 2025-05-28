@@ -50,7 +50,7 @@ async def get_project_documents(
         if source_filter:
             query = query.eq("source", source_filter)
 
-        result = await query.order("created_at", options={"ascending": False}).execute()
+        result = await query.order("created_at").execute()
 
         return [DocumentResponse(**doc) for doc in result.data]
 
@@ -91,7 +91,7 @@ async def delete_document(supabase: AsyncClient, document_id: UUID, user_id: UUI
         raise GeneralServerError(error_detail_message="Failed to delete document")
 
 
-async def download_document(supabase: AsyncClient, document_id: UUID, user_id: UUID) -> Dict[str, Any]:
+async def download_document(supabase: AsyncClient, document_id: UUID, user_id: UUID) -> DocumentDownloadResponse:
     """
     Get download URL for a document.
     """
@@ -107,11 +107,11 @@ async def download_document(supabase: AsyncClient, document_id: UUID, user_id: U
         file_path = document["file_path"]
 
         # Generate signed URL (expires in 1 hour)
-        signed_url_result = supabase.storage.from_("project-attachments").create_signed_url(file_path, expires_in=3600)
+        signed_url_result = await supabase.storage.from_("project-attachments").create_signed_url(file_path, expires_in=3600)
 
         return DocumentDownloadResponse(
             download_url=signed_url_result["signedURL"],
-            filename=document["safe_file_name"],
+            file_name=document["safe_file_name"],
             file_type=document["file_type"],
             file_size=document["file_size"],
         )

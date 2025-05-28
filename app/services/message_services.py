@@ -4,10 +4,10 @@ import traceback
 from supabase._async.client import AsyncClient
 from app.custom_error import DataBaseError, GeneralServerError, UserAuthError
 from datetime import datetime, timezone
-from app.models.message_models import MessageResponse
+from app.models.message_models import MessageResponse, MessageFilter, MessageUpdate
 
 
-async def get_messages_with_filters(supabase: AsyncClient, user_id: UUID, filter_params: Dict[str, Any]) -> List[MessageResponse]:
+async def get_messages_with_filters(supabase: AsyncClient, user_id: UUID, filter_params: MessageFilter) -> List[MessageResponse]:
     """
     Get messages with filtering options using the RPC function.
     """
@@ -18,16 +18,16 @@ async def get_messages_with_filters(supabase: AsyncClient, user_id: UUID, filter
             "get_messages_with_filters",
             {
                 "user_id_param": str(user_id),
-                "project_id_param": str(filter_params.get("project_id")) if filter_params.get("project_id") is not None else None,
-                "channel_id_param": str(filter_params.get("channel_id")) if filter_params.get("channel_id") is not None else None,
-                "contact_id_param": str(filter_params.get("contact_id")) if filter_params.get("contact_id") is not None else None,
-                "thread_id_param": filter_params.get("thread_id"),
-                "start_date_param": filter_params.get("start_date"),
-                "end_date_param": filter_params.get("end_date"),
-                "is_read_param": filter_params.get("is_read"),
-                "is_from_contact_param": filter_params.get("is_from_contact"),
-                "limit_param": filter_params.get("limit", 50),
-                "offset_param": filter_params.get("offset", 0),
+                "project_id_param": str(filter_params.project_id) if filter_params.project_id else None,
+                "channel_id_param": str(filter_params.channel_id) if filter_params.channel_id else None,
+                "contact_id_param": str(filter_params.contact_id) if filter_params.contact_id else None,
+                "thread_id_param": filter_params.thread_id,
+                "start_date_param": filter_params.start_date,
+                "end_date_param": filter_params.end_date,
+                "is_read_param": filter_params.is_read,
+                "is_from_contact_param": filter_params.is_from_contact,
+                "limit_param": filter_params.limit,
+                "offset_param": filter_params.offset,
             },
         ).execute()
 
@@ -62,7 +62,7 @@ async def get_message_by_id(supabase: AsyncClient, message_id: UUID, user_id: UU
         raise GeneralServerError(error_detail_message="Failed to retrieve that message")
 
 
-async def mark_message_as_read(supabase: AsyncClient, message_id: UUID, user_id: UUID) -> MessageResponse:
+async def mark_message_as_read(supabase: AsyncClient, message_id: UUID, user_id: UUID, message_update_payload: MessageUpdate) -> MessageResponse:
     """
     Mark a message as read with user verification.
     """
@@ -71,18 +71,11 @@ async def mark_message_as_read(supabase: AsyncClient, message_id: UUID, user_id:
         # Verify message belongs to user's project
         await get_message_by_id(supabase, message_id, user_id)
 
+        message_update_data = message_update_payload.model_dump()
+        message_update_data["updated_at"] = datetime.now(timezone.utc).isoformat()
+
         # Update message read status
-        result = (
-            await supabase.table("messages")
-            .update(
-                {
-                    "is_read": True,
-                    "updated_at": datetime.now(timezone.utc).isoformat(),
-                }
-            )
-            .eq("id", str(message_id))
-            .execute()
-        )
+        result = await supabase.table("messages").update(message_update_data).eq("id", str(message_id)).execute()
 
         if not result.data:
             raise DataBaseError(error_detail_message="Failed to mark message as read")

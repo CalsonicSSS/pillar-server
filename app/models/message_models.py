@@ -36,7 +36,7 @@ class MessageResponse(MessageBase):
 
 class MessageFilter(BaseModel):
     channel_id: Optional[UUID] = None
-    contact_id: Optional[List[UUID]] = None
+    contact_id: Optional[UUID] = None
     project_id: Optional[UUID] = None
     thread_id: Optional[str] = None
     start_date: Optional[datetime] = None
