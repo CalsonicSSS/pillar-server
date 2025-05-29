@@ -339,7 +339,7 @@ async def schedule_daily_recaps_update(supabase: AsyncClient) -> None:
                     .select("*")
                     .eq("project_id", project_id)
                     .eq("summary_type", "daily")
-                    .order("start_date", options={"ascending": False})
+                    .order("start_date", desc=True)
                     .execute()
                 )
 
@@ -439,7 +439,7 @@ async def schedule_weekly_recaps_update(supabase: AsyncClient) -> None:
                     .select("*")
                     .eq("project_id", project_id)
                     .eq("summary_type", "weekly")
-                    .order("start_date", options={"ascending": False})
+                    .order("start_date", desc=True)
                     .execute()
                 )
 
