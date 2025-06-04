@@ -8,6 +8,7 @@ from app.models.document_models import DocumentResponse, DocumentDeletionRespons
 import traceback
 
 
+# UploadFile type has attributes like .filename, .content_type and Can be read via .read() (returns bytes of actual file content)
 async def upload_document_to_project(supabase: AsyncClient, project_id: UUID, uploaded_file: UploadFile, user_id: UUID) -> DocumentResponse:
     """
     Upload a document file to a specific project.
@@ -29,6 +30,9 @@ async def upload_document_to_project(supabase: AsyncClient, project_id: UUID, up
     except Exception as e:
         print(traceback.format_exc())
         raise GeneralServerError(error_detail_message="Failed to upload document")
+
+
+# --------------------------------------------------------------------------------------------------------------------------------
 
 
 async def get_project_documents(
@@ -61,6 +65,9 @@ async def get_project_documents(
         raise GeneralServerError(error_detail_message="Failed to retrieve documents")
 
 
+# --------------------------------------------------------------------------------------------------------------------------------
+
+
 async def delete_document(supabase: AsyncClient, document_id: UUID, user_id: UUID) -> DocumentDeletionResponse:
     """
     Delete a document from both database and storage.
@@ -89,6 +96,9 @@ async def delete_document(supabase: AsyncClient, document_id: UUID, user_id: UUI
     except Exception as e:
         print(traceback.format_exc())
         raise GeneralServerError(error_detail_message="Failed to delete document")
+
+
+# --------------------------------------------------------------------------------------------------------------------------------
 
 
 async def download_document(supabase: AsyncClient, document_id: UUID, user_id: UUID) -> DocumentDownloadResponse:

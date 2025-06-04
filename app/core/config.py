@@ -36,7 +36,10 @@ class Settings(BaseSettings):
         case_sensitive = True
 
 
-# # Python only caches the module (so the file doesn’t re-run entirely for the subsequent module import in the current execute process) as default behaviour, not the function calls inside it.
+# Python can auto caches the module in each of its execution flow
+# so the file doesn’t re-run entirely for the subsequent module import in the current execute process as default behaviour.
+# However, this is not the same for calling a imported function multiple times -> as each time the function is called, it will re-execute the code inside it in other places.
+# Using @lru_cache() decorator from functools to cache the result of the FIRST function call. and all subsequent calls will return the cached result instead of re-executing the function.
 # @lru_cache() ensures that the Settings object is instantiated only once, preventing repeated reads and re-parsing of the .env file.
 # Subsequent imports of "get_app_config_settings" and call do NOT re-execute this specific function of "get_app_config_settings".
 @lru_cache()

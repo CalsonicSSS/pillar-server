@@ -35,7 +35,7 @@ async def start_gmail_user_watch(supabase: AsyncClient, user_id: UUID) -> Dict[s
             print(f"Gmail watch already active for user {user_id}")
             return {"status": "already_active", "message": "Gmail watch is already active and not expired", "expiration": existing_watch_expiration}
 
-        # Start Gmail watch
+        # If not, then Start Gmail watch
         watch_result = start_gmail_watch(user_gmail_oauth_data)
 
         # Update OAuth data with watch information
@@ -45,7 +45,7 @@ async def start_gmail_user_watch(supabase: AsyncClient, user_id: UUID) -> Dict[s
             "starting_history_id": watch_result["history_id"],
         }
 
-        # Update OAuth data with new the historyId from watch response
+        # Update OAuth data with new historyId from watch response
         user_gmail_oauth_data["user_info"]["historyId"] = watch_result["history_id"]
 
         # Save updated user gmail OAuth data
@@ -64,6 +64,9 @@ async def start_gmail_user_watch(supabase: AsyncClient, user_id: UUID) -> Dict[s
     except Exception as e:
         print(traceback.format_exc())
         raise GeneralServerError(error_detail_message=f"Failed to start Gmail watch: {str(e)}")
+
+
+# ----------------------------------------------------------------------------------------------------------------------------------------
 
 
 async def stop_gmail_user_watch(supabase: AsyncClient, user_id: UUID) -> Dict[str, Any]:
@@ -104,6 +107,9 @@ async def stop_gmail_user_watch(supabase: AsyncClient, user_id: UUID) -> Dict[st
     except Exception as e:
         print(traceback.format_exc())
         raise GeneralServerError(error_detail_message=f"Failed to stop Gmail watch: {str(e)}")
+
+
+# ---------------------------------------------------------------------------------------------------------------------------------------
 
 
 async def check_and_renew_gmail_user_watch(supabase: AsyncClient, user_id: UUID) -> Dict[str, Any]:

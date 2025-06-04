@@ -56,13 +56,13 @@ async def process_gmail_pub_sub_notifications(request: Request, supabase: AsyncC
                 print(f"No Gmail OAuth credentials found for email address {user_email_address}")
                 return {"status": "error", "message": f"No gmail OAuth credentials found for {user_email_address}"}
 
-            target_user_oauth_credentials = user_gmail_oauth_credentials_query_result.data[0]
+            user_gmail_credentials = user_gmail_oauth_credentials_query_result.data[0]
 
             # get the user_id from the oauth credentials
-            user_id = target_user_oauth_credentials["user_id"]
+            user_id = user_gmail_credentials["user_id"]
 
             # Current historyId from our stored credentials
-            current_user_gmail_history_id = target_user_oauth_credentials["oauth_data"].get("user_info", {}).get("historyId")
+            current_user_gmail_history_id = user_gmail_credentials["oauth_data"].get("user_info", {}).get("historyId")
 
             if not current_user_gmail_history_id:
                 print("No historyId found in stored credentials")
@@ -85,7 +85,7 @@ async def process_gmail_pub_sub_notifications(request: Request, supabase: AsyncC
             # Get history changes
             # all msg id fetched from "get_gmail_history_delta_msg_ids" can potential from all possible contacts from user gmail channel
             # so later we will need to filter out which messages are relevant to the user based on the only the chosen existing contacts
-            history_delta_result = get_gmail_history_delta_msg_ids(target_user_oauth_credentials["oauth_data"], current_user_gmail_history_id)
+            history_delta_result = get_gmail_history_delta_msg_ids(user_gmail_credentials["oauth_data"], current_user_gmail_history_id)
             new_history_id = history_delta_result["history_id"]
             delta_message_ids = history_delta_result["message_ids"]
 
@@ -94,8 +94,8 @@ async def process_gmail_pub_sub_notifications(request: Request, supabase: AsyncC
             if not delta_message_ids:
                 # No new messages to process
                 # Still update the historyId
-                target_user_oauth_credentials["oauth_data"]["user_info"]["historyId"] = new_history_id
-                await update_user_oauth_credentials_by_channel_type(supabase, UUID(user_id), "gmail", target_user_oauth_credentials["oauth_data"])
+                user_gmail_credentials["oauth_data"]["user_info"]["historyId"] = new_history_id
+                await update_user_oauth_credentials_by_channel_type(supabase, UUID(user_id), "gmail", user_gmail_credentials["oauth_data"])
                 return {"status": "success", "message": "No new messages to process", "history_id": new_history_id, "new_msg_saved": 0}
 
             # filter 1: Get active projects and their channels for this user
@@ -104,8 +104,8 @@ async def process_gmail_pub_sub_notifications(request: Request, supabase: AsyncC
             if not active_projects_result.data:
                 print(f"No active projects found for user {user_id}, skipping message processing")
                 # Still update the historyId even if no active projects
-                target_user_oauth_credentials["oauth_data"]["user_info"]["historyId"] = new_history_id
-                await update_user_oauth_credentials_by_channel_type(supabase, UUID(user_id), "gmail", target_user_oauth_credentials["oauth_data"])
+                user_gmail_credentials["oauth_data"]["user_info"]["historyId"] = new_history_id
+                await update_user_oauth_credentials_by_channel_type(supabase, UUID(user_id), "gmail", user_gmail_credentials["oauth_data"])
                 return {"status": "success", "message": "No active projects found", "history_id": new_history_id, "new_msg_saved": 0}
 
             active_project_ids = [p["id"] for p in active_projects_result.data]
@@ -123,8 +123,8 @@ async def process_gmail_pub_sub_notifications(request: Request, supabase: AsyncC
             if not channels_result.data:
                 print(f"No Gmail channels found for active projects of user {user_id}")
                 # Still update the historyId even if no Gmail channels
-                target_user_oauth_credentials["oauth_data"]["user_info"]["historyId"] = new_history_id
-                await update_user_oauth_credentials_by_channel_type(supabase, UUID(user_id), "gmail", target_user_oauth_credentials["oauth_data"])
+                user_gmail_credentials["oauth_data"]["user_info"]["historyId"] = new_history_id
+                await update_user_oauth_credentials_by_channel_type(supabase, UUID(user_id), "gmail", user_gmail_credentials["oauth_data"])
                 return {
                     "status": "success",
                     "message": "No Gmail channels found in active projects",
@@ -143,8 +143,8 @@ async def process_gmail_pub_sub_notifications(request: Request, supabase: AsyncC
             if not contacts_result.data:
                 print(f"No contacts found for Gmail channels in active projects of user {user_id}")
                 # Still update the historyId even if no contacts
-                target_user_oauth_credentials["oauth_data"]["user_info"]["historyId"] = new_history_id
-                await update_user_oauth_credentials_by_channel_type(supabase, UUID(user_id), "gmail", target_user_oauth_credentials["oauth_data"])
+                user_gmail_credentials["oauth_data"]["user_info"]["historyId"] = new_history_id
+                await update_user_oauth_credentials_by_channel_type(supabase, UUID(user_id), "gmail", user_gmail_credentials["oauth_data"])
                 return {"status": "success", "message": "No contacts found in Gmail channels", "history_id": new_history_id, "new_msg_saved": 0}
 
             # Organize contacts by channel
@@ -157,13 +157,13 @@ async def process_gmail_pub_sub_notifications(request: Request, supabase: AsyncC
 
             # Batch get all the full messages
             # need to use full message to compare if any of these messaage are from target contact(s) within all gmail channels under active project for this user
-            full_messages = batch_get_gmail_full_messages(target_user_oauth_credentials["oauth_data"], delta_message_ids)
+            full_messages = batch_get_gmail_full_messages(user_gmail_credentials["oauth_data"], delta_message_ids)
 
             if not full_messages:
                 print(f"No full messages retrieved for user {user_id}")
                 # Still update the historyId even if no messages retrieved
-                target_user_oauth_credentials["oauth_data"]["user_info"]["historyId"] = new_history_id
-                await update_user_oauth_credentials_by_channel_type(supabase, UUID(user_id), "gmail", target_user_oauth_credentials["oauth_data"])
+                user_gmail_credentials["oauth_data"]["user_info"]["historyId"] = new_history_id
+                await update_user_oauth_credentials_by_channel_type(supabase, UUID(user_id), "gmail", user_gmail_credentials["oauth_data"])
                 return {"status": "success", "message": "No full messages retrieved", "history_id": new_history_id, "new_msg_saved": 0}
 
             # Process and store relevant messages
@@ -244,7 +244,7 @@ async def process_gmail_pub_sub_notifications(request: Request, supabase: AsyncC
 
                         # Transform and store the message with attachments
                         transformed_message = await transform_and_process_fetched_full_gmail_message_with_attachments(
-                            full_message, contact_id, user_email_address, target_user_oauth_credentials["oauth_data"], supabase
+                            full_message, contact_id, user_email_address, user_gmail_credentials["oauth_data"], supabase
                         )
 
                         # Insert the message
@@ -257,8 +257,8 @@ async def process_gmail_pub_sub_notifications(request: Request, supabase: AsyncC
                             )
 
             # Update historyId after processing
-            target_user_oauth_credentials["oauth_data"]["user_info"]["historyId"] = new_history_id
-            await update_user_oauth_credentials_by_channel_type(supabase, UUID(user_id), "gmail", target_user_oauth_credentials["oauth_data"])
+            user_gmail_credentials["oauth_data"]["user_info"]["historyId"] = new_history_id
+            await update_user_oauth_credentials_by_channel_type(supabase, UUID(user_id), "gmail", user_gmail_credentials["oauth_data"])
 
             return {
                 "status": "success",
