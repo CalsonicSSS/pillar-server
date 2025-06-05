@@ -213,10 +213,11 @@ async def generate_to_be_summarized_timeline_recap_summaries(
             .execute()
         )
 
-        # so far we will hard code user's own gmail channel identify
+        # so far we will only get the user's own gmail channel identify only
         # we will later make this dynamic to include all possible user identifies from all different channels
         target_user_gmail_oauth_credentials = get_user_oauth_credentials_by_channel_type(supabase, user_id, "gmail")
-        user_identifies = f"gmail: {target_user_gmail_oauth_credentials["oauth_data"]["user_info"]["emailAddress"]}"
+        target_user_gmail_address = target_user_gmail_oauth_credentials["oauth_data"]["user_info"]["emailAddress"]
+        user_identifies = f"gmail: {target_user_gmail_address}"
 
         if not project_result.data:
             raise UserAuthError(error_detail_message="Project not found or access denied")
@@ -340,10 +341,11 @@ async def schedule_daily_recaps_update(supabase: AsyncClient) -> None:
             user_id = active_project["user_id"]
             project_context = active_project.get("project_context_detail", "")
 
-            # so far we will hard code user's own gmail channel identify
+            # so far we will only get the user's own gmail channel identify only
             # we will later make this dynamic to include all possible user identifies from all different channels
             target_user_gmail_oauth_credentials = get_user_oauth_credentials_by_channel_type(supabase, user_id, "gmail")
-            user_identifies = f"gmail: {target_user_gmail_oauth_credentials["oauth_data"]["user_info"]["emailAddress"]}"
+            target_user_gmail_address = target_user_gmail_oauth_credentials["oauth_data"]["user_info"]["emailAddress"]
+            user_identifies = f"gmail: {target_user_gmail_address}"
 
             try:
                 # Get existing timeline recap structure
@@ -453,10 +455,11 @@ async def schedule_weekly_recaps_update(supabase: AsyncClient) -> None:
             user_id = active_project["user_id"]
             project_context = active_project.get("project_context_detail", "")
 
-            # so far we will hard code user's own gmail channel identify
+            # so far we will only get the user's own gmail channel identify only
             # we will later make this dynamic to include all possible user identifies from all different channels
             target_user_gmail_oauth_credentials = get_user_oauth_credentials_by_channel_type(supabase, user_id, "gmail")
-            user_identifies = f"gmail: {target_user_gmail_oauth_credentials["oauth_data"]["user_info"]["emailAddress"]}"
+            target_user_gmail_address = target_user_gmail_oauth_credentials["oauth_data"]["user_info"]["emailAddress"]
+            user_identifies = f"gmail: {target_user_gmail_address}"
 
             try:
                 # Get existing timeline recap structure
