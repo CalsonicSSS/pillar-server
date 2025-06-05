@@ -21,6 +21,9 @@ def generate_gmail_oauth_url(state: str) -> str:
         The authorization URL to redirect the user to
     """
     # Define OAuth parameters
+    # all fields here are necessary despite the same setup you have on the GCP
+    # GCP is only for declaring and verification purpose
+    # when the user is actually redirected to the Google OAuth consent screen via the URL you generate, it authorizes only the scopes explicitly passed in the URL here.
     params = {
         "client_id": app_config_settings.GOOGLE_CLIENT_ID,
         "redirect_uri": app_config_settings.GOOGLE_REDIRECT_URI,  # this is specify which redirect URI to use after user consent for this client ID setup on GCP

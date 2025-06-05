@@ -12,6 +12,7 @@ from app.models.timeline_recap_models import (
 )
 from app.utils.llm.timeline_recap_llm_helpers import generate_weekly_summary, generate_daily_summary
 from app.utils.generals import logger
+from app.services.user_oauth_credential_services import get_user_oauth_credentials_by_channel_type
 
 
 async def get_project_timeline_recap(supabase: AsyncClient, project_id: UUID, user_id: UUID) -> TimelineRecapResponse:
@@ -63,9 +64,12 @@ async def get_project_timeline_recap(supabase: AsyncClient, project_id: UUID, us
         raise GeneralServerError(error_detail_message="Failed to retrieve timeline recap")
 
 
-# This function mainly just to create 7 entries (3 daily + 4 weekly) as placeholder data structure in the database
+# ----------------------------------------------------------------------------------------------------------------------------------
+
+
+# This function is to create 5 definite entries (3 daily + 2 weekly) as placeholder data structure in the database
 # this function should be fully AUTOMATICALLY called when a new project is created by user without user intervention
-# this setups the initial data structure for the timeline recap for later first time initialization and sheduled daily / weekly generation
+# this sets up the initial data structure for the timeline recap for later "first-time" initialization and sheduled daily / weekly generation
 async def initialize_project_timeline_recap_data_structure(
     supabase: AsyncClient, project_id: UUID, user_id: UUID
 ) -> TimelineRecapDataStructureCreateResponse:
@@ -118,7 +122,7 @@ async def initialize_project_timeline_recap_data_structure(
             }
         )
 
-        # Previous two days (full 24-hour periods)
+        # Previous 2 days (full 24-hour per period)
         for day_offset in range(1, 3):
             day_end = start_of_first_date - timedelta(days=day_offset - 1)
             day_start = day_end - timedelta(days=1)
@@ -155,8 +159,8 @@ async def initialize_project_timeline_recap_data_structure(
             }
         )
 
-        # Previous three weeks (full 7-day periods)
-        for week_offset in range(1, 4):
+        # Previous 1 week (full 7-day per period)
+        for week_offset in range(1, 2):
             week_end = start_of_first_week - timedelta(days=(week_offset - 1) * 7)
             week_start = week_end - timedelta(days=7)
 
@@ -194,7 +198,7 @@ async def initialize_project_timeline_recap_data_structure(
 
 
 # this is the function that actually does the LLM summarization for EACH OF ALL fetched recap elements WITHIN A SPECIFIC PROJECT for only the "To be summarized" ones
-# Only after initialization can "generate_to_be_summarized_timeline_recap_summaries" be meaningfully called afterwards (This sequence is critical)
+# Only after initialization, can "generate_to_be_summarized_timeline_recap_summaries" be meaningfully called afterwards (This sequence is critical)
 async def generate_to_be_summarized_timeline_recap_summaries(
     supabase: AsyncClient, project_id: UUID, user_id: UUID
 ) -> TimelineRecapSummaryGenResponse:
@@ -209,6 +213,11 @@ async def generate_to_be_summarized_timeline_recap_summaries(
             .execute()
         )
 
+        # so far we will hard code user's own gmail channel identify
+        # we will later make this dynamic to include all possible user identifies from all different channels
+        target_user_gmail_oauth_credentials = get_user_oauth_credentials_by_channel_type(supabase, user_id, "gmail")
+        user_identifies = f"gmail: {target_user_gmail_oauth_credentials["oauth_data"]["user_info"]["emailAddress"]}"
+
         if not project_result.data:
             raise UserAuthError(error_detail_message="Project not found or access denied")
 
@@ -216,31 +225,29 @@ async def generate_to_be_summarized_timeline_recap_summaries(
 
         generated_count = 0
 
-        # find all timeline element(s) data placeholder to be summarized within the whole project scope for only the "To be summarized" ones
-        recap_elements = (
+        # find all timeline recap element(s) data placeholder to be summarized within the whole project scope for only the "To be summarized" ones
+        project_all_timeline_recap_elements = (
             await supabase.table("communication_timeline_recap")
             .select("*")
             .eq("project_id", str(project_id))
             .eq("content", "To be summarized")
             .execute()
         )
-        if not recap_elements.data:
+        if not project_all_timeline_recap_elements.data:
             return TimelineRecapSummaryGenResponse(
                 status="error",
                 status_message="No timeline recap elements to summarize found for this project",
             )
 
-        project_timeline_recap_elements_to_generate = recap_elements.data
-
         # Process each timeline recap element summary content
-        for recap_element in project_timeline_recap_elements_to_generate:
+        for recap_element in project_all_timeline_recap_elements.data:
             recap_element_id = recap_element["id"]
             recap_element_type = recap_element["summary_type"]
             recap_element_start_date = datetime.fromisoformat(recap_element["start_date"])
             recap_element_end_date = datetime.fromisoformat(recap_element["end_date"])
 
-            # Get messages within this date time range of this current recap_element
-            all_project_messages_within_recap_element_time_range = await supabase.rpc(
+            # filter messages within this date time range of this summary-recap-element within this specific project
+            recap_element_time_range_filtered_msgs = await supabase.rpc(
                 "get_messages_with_filters",
                 {
                     "user_id_param": str(user_id),
@@ -252,26 +259,26 @@ async def generate_to_be_summarized_timeline_recap_summaries(
                     "end_date_param": recap_element_end_date.isoformat(),
                     "is_read_param": None,  # Both read and unread
                     "is_from_contact_param": None,  # Both from user and contacts
-                    "limit_param": 100,  # Reasonable limit for summarization
+                    "limit_param": 200,  # Reasonable limit for summarization
                     "offset_param": 0,
                 },
             ).execute()
-
-            project_time_filtered_messages = all_project_messages_within_recap_element_time_range.data
 
             # Generate summary based on type for this specific recap element
             if recap_element_type == "daily":
                 recap_element_summary_content = await generate_daily_summary(
                     start_date=recap_element_start_date,
-                    messages=project_time_filtered_messages,
+                    messages=recap_element_time_range_filtered_msgs.data,  # can be empty list
                     project_context=project_context,
+                    user_identifies=user_identifies,
                 )
             else:  # weekly
                 recap_element_summary_content = await generate_weekly_summary(
                     start_date=recap_element_start_date,
                     end_date=recap_element_end_date,
-                    messages=project_time_filtered_messages,
+                    messages=recap_element_time_range_filtered_msgs.data,  # can be empty list
                     project_context=project_context,
+                    user_identifies=user_identifies,
                 )
 
             # Update the target timeline recap element with summarized content in the database
@@ -300,6 +307,7 @@ async def generate_to_be_summarized_timeline_recap_summaries(
 # scheduler service functions
 
 
+# this is on the whole app's projects level from all users
 async def schedule_daily_recaps_update(supabase: AsyncClient) -> None:
     """
     Daily update for all projects' timeline recaps.
@@ -308,7 +316,7 @@ async def schedule_daily_recaps_update(supabase: AsyncClient) -> None:
     logger.info("Running scheduled daily recaps update...")
 
     try:
-        # Get all projects
+        # Get all projects cross the app
         active_projects_result = await supabase.table("projects").select("id, user_id, project_context_detail").eq("status", "active").execute()
 
         if not active_projects_result.data:
@@ -332,9 +340,14 @@ async def schedule_daily_recaps_update(supabase: AsyncClient) -> None:
             user_id = active_project["user_id"]
             project_context = active_project.get("project_context_detail", "")
 
+            # so far we will hard code user's own gmail channel identify
+            # we will later make this dynamic to include all possible user identifies from all different channels
+            target_user_gmail_oauth_credentials = get_user_oauth_credentials_by_channel_type(supabase, user_id, "gmail")
+            user_identifies = f"gmail: {target_user_gmail_oauth_credentials["oauth_data"]["user_info"]["emailAddress"]}"
+
             try:
                 # Get existing timeline recap structure
-                existing_recaps = (
+                project_existing_daily_recaps = (
                     await supabase.table("communication_timeline_recap")
                     .select("*")
                     .eq("project_id", project_id)
@@ -343,16 +356,16 @@ async def schedule_daily_recaps_update(supabase: AsyncClient) -> None:
                     .execute()
                 )
 
-                if not existing_recaps.data or len(existing_recaps.data) < 3:
+                if not project_existing_daily_recaps.data:
                     logger.warning(f"Incomplete daily recap structure for project {project_id}, skipping")
                     continue
 
-                # Get the oldest daily recap to replace
-                oldest_recap = min(existing_recaps.data, key=lambda x: datetime.fromisoformat(x["start_date"]))
+                # Get the oldest daily recap to update it to latest (this is important as this simulates the rolling window)
+                oldest_recap = min(project_existing_daily_recaps.data, key=lambda x: datetime.fromisoformat(x["start_date"]))
                 oldest_recap_id = oldest_recap["id"]
 
                 # Get messages from the date range
-                messages = await supabase.rpc(
+                new_day_range_filtered_messages = await supabase.rpc(
                     "get_messages_with_filters",
                     {
                         "user_id_param": user_id,
@@ -364,16 +377,21 @@ async def schedule_daily_recaps_update(supabase: AsyncClient) -> None:
                         "end_date_param": end_date.isoformat(),
                         "is_read_param": None,  # Both read and unread
                         "is_from_contact_param": None,  # Both from user and contacts
-                        "limit_param": 100,  # Reasonable limit for summarization
+                        "limit_param": 200,  # Reasonable limit for summarization
                         "offset_param": 0,
                     },
                 ).execute()
 
                 # Generate summary
-                if messages.data:
-                    summary = await generate_daily_summary(start_date=start_date, messages=messages.data, project_context=project_context)
+                if new_day_range_filtered_messages.data:
+                    summary = await generate_daily_summary(
+                        start_date=start_date,
+                        messages=new_day_range_filtered_messages.data,
+                        project_context=project_context,
+                        user_identifies=user_identifies,
+                    )
                 else:
-                    summary = "• No significant summary during this day."
+                    summary = "• No important summary during this day."
 
                 # Create updated daily recap content
                 updated_recap = {
@@ -400,6 +418,9 @@ async def schedule_daily_recaps_update(supabase: AsyncClient) -> None:
         logger.error(traceback.format_exc())
 
 
+# ------------------------------------------------------------------------------------------------------------------------
+
+
 async def schedule_weekly_recaps_update(supabase: AsyncClient) -> None:
     """
     Weekly update for all projects' timeline recaps.
@@ -408,7 +429,7 @@ async def schedule_weekly_recaps_update(supabase: AsyncClient) -> None:
     logger.info("Running scheduled weekly recaps update...")
 
     try:
-        # Get all projects
+        # Get all projects cross the app
         active_projects_result = await supabase.table("projects").select("id, user_id, project_context_detail").eq("status", "active").execute()
 
         if not active_projects_result.data:
@@ -432,9 +453,14 @@ async def schedule_weekly_recaps_update(supabase: AsyncClient) -> None:
             user_id = active_project["user_id"]
             project_context = active_project.get("project_context_detail", "")
 
+            # so far we will hard code user's own gmail channel identify
+            # we will later make this dynamic to include all possible user identifies from all different channels
+            target_user_gmail_oauth_credentials = get_user_oauth_credentials_by_channel_type(supabase, user_id, "gmail")
+            user_identifies = f"gmail: {target_user_gmail_oauth_credentials["oauth_data"]["user_info"]["emailAddress"]}"
+
             try:
                 # Get existing timeline recap structure
-                existing_recaps = (
+                project_existing_weekly_recaps = (
                     await supabase.table("communication_timeline_recap")
                     .select("*")
                     .eq("project_id", project_id)
@@ -443,12 +469,12 @@ async def schedule_weekly_recaps_update(supabase: AsyncClient) -> None:
                     .execute()
                 )
 
-                if not existing_recaps.data or len(existing_recaps.data) < 4:
+                if not project_existing_weekly_recaps.data:
                     logger.warning(f"Incomplete weekly recap structure for project {project_id}, skipping")
                     continue
 
-                # Get the oldest weekly recap to replace
-                oldest_recap = min(existing_recaps.data, key=lambda x: datetime.fromisoformat(x["start_date"]))
+                # Get the oldest weekly recap to update it to latest (this is important as this simulates the rolling window)
+                oldest_recap = min(project_existing_weekly_recaps.data, key=lambda x: datetime.fromisoformat(x["start_date"]))
                 oldest_recap_id = oldest_recap["id"]
 
                 # Get messages from the date range
@@ -464,7 +490,7 @@ async def schedule_weekly_recaps_update(supabase: AsyncClient) -> None:
                         "end_date_param": end_date.isoformat(),
                         "is_read_param": None,  # Both read and unread
                         "is_from_contact_param": None,  # Both from user and contacts
-                        "limit_param": 200,  # Higher limit for weekly summaries
+                        "limit_param": 200,
                         "offset_param": 0,
                     },
                 ).execute()
@@ -472,10 +498,14 @@ async def schedule_weekly_recaps_update(supabase: AsyncClient) -> None:
                 # Generate summary
                 if messages.data:
                     summary = await generate_weekly_summary(
-                        start_date=start_date, end_date=end_date, messages=messages.data, project_context=project_context
+                        start_date=start_date,
+                        end_date=end_date,
+                        messages=messages.data,
+                        project_context=project_context,
+                        user_identifies=user_identifies,
                     )
                 else:
-                    summary = "• No significant summary during this week."
+                    summary = "• No important summary during this week."
 
                 updated_recap = {
                     "start_date": start_date.isoformat(),

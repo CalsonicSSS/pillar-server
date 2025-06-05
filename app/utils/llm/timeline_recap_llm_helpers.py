@@ -7,8 +7,12 @@ from app.custom_error import GeneralServerError
 
 def create_summarization_system_prompt() -> str:
     system_prompt = """You are a professional executive assistant for accounting professionals (the user). 
-    Your role is to summarize user ("accounting professionals") client communications efficiently, focusing on what matters most to accounting work and based on all the messages provided.
-    Provide only the summary in bullet point format, with no additional text or commentary."""
+    Your role is to summarize communication messages between user ("accounting professionals") and their clients efficiently within a specific PROJECT SCOPE. 
+    Focusing on what matters most to accounting work and based on all the messages provided.
+    Provide only the summary in bullet point format in the end, with no additional text or commentary.
+
+    user's communication message with her clients can takes place across gmail, teams, slack, and other possible work communication channels.    
+    """
     return system_prompt
 
 
@@ -18,9 +22,9 @@ def create_summarization_user_prompt(date_range_description: str, summary_type: 
 
 Task Guidelines:
 1. Carefully go through all the provided communication messages, and summarize them in bullet points. 
-2. Focus your summary on key information, insights, and possible actions items to be highlighted in your response based on all provided communication messages.
+2. Focus your summary on key information, insights, message attachment(s), and important action items to be highlighted in your summary response based on all provided communication messages.
 3. There could be messages between my clients and I that are unrelated to accounting work and not important to summarize, Use your judgement to focus on the messages that are relevant to work only.
-4. pay attention if I have provided a non-empty "project context" for this project as additional context. Use them accordingly as additional background context during your summarization process.
+4. pay attention if I have provided any non-empty "project context" for this project as additional context for your task. Use them accordingly as additional background context for your summarization task.
 
 
 Response Format:
@@ -28,16 +32,16 @@ Response Format:
 2. Make sure each bullet point is concise and to the point.
 3. Make sure your total summarization bullet points counts are also concise and limit them as much as possible as well. 
 4. Use professional, direct language.
-5. If there are no communications message or entire provide communication messages are non-work related, your only bullet point should be "• No significant summary during this {time_scope}."
+5. If there are no communications message or entire provide communication messages are non-work related, your only bullet point should be "• No important summary during this {time_scope}."
 """
 
     return user_prompt
 
 
-def format_all_message_contents(messages: List[Dict[str, Any]]) -> List[Dict[str, str]]:
+def format_all_project_messages(messages: List[Dict[str, Any]]) -> List[Dict[str, str]]:
     # If no messages:
     if not messages:
-        return {"type": "text", "text": "There were no messages in this time period."}
+        return "There were no messages in this time period."
 
     all_message_contents = ""
     all_message_contents += "Here are all the communication messages to summarize:\n\n"
@@ -57,32 +61,40 @@ def format_all_message_contents(messages: List[Dict[str, Any]]) -> List[Dict[str
 
         all_message_contents += f"Date: {date}\n"
 
-        channel_type = msg.get("channel_type", "Unknown message type")
-        all_message_contents += f"Message Channel type: {channel_type}\n"
-
         sender = msg.get("sender_account", "Unknown")
         recipients = ", ".join(msg.get("recipient_accounts", ["Unknown"]))
         subject = msg.get("subject", "No subject")
+        attachments = ", ".join([attachment["filename"] for attachment in msg.get("attachments")])
 
         all_message_contents += f"From: {sender}\n"
         all_message_contents += f"To: {recipients}\n"
         all_message_contents += f"Subject: {subject}\n"
 
+        # we will later need to find ways to dynamic find message's corresponding channel type
+        # so far we only have gmail channel type enabled
+        all_message_contents += f"message channel type: gmail"
+
+        all_message_contents += f"available attachments: {attachments}"
+
         # Use text body if available, otherwise HTML
         body = msg.get("body_text", msg.get("body_html", "No content"))
 
         # Truncate very long bodies
-        if len(body) > 2000:
-            body = body[:3500] + "... [truncated]"
+        if len(body) > 2500:
+            body = body[:2500] + "... [truncated]"
 
         all_message_contents += f"Message:\n{body}\n\n"
-        all_message_contents += "-" * 40 + "\n\n"
+        all_message_contents += "-" * 40 + "\n\n\n\n"
 
-    return {"type": "text", "text": all_message_contents}
+    return all_message_contents
 
 
 async def summarize_timeline_recap_element(
-    messages: List[Dict[str, Any]], date_range_description: str, summary_type: str = "daily", project_context: str = ""
+    messages: List[Dict[str, Any]],
+    user_identifies: str,
+    date_range_description: str,
+    summary_type: str = "daily",
+    project_context: str = "",
 ) -> str:
     """
     Summarize messages in a given date range using Claude.
@@ -97,14 +109,15 @@ async def summarize_timeline_recap_element(
         Summary string in bullet point format
     """
     try:
-        if project_context:
-            project_context_content = f"Given project Context:\n\n {project_context}"
+        project_context_content = f"Here is my project context for you to review: {project_context}"
+
+        user_own_identities_content = f"Here are my own identities from different channels within this project for you to recognize: {user_identifies}. Please recognize who is me and who are my client contacts within this project"
 
         # Create system prompt
         system_prompt = create_summarization_system_prompt()
 
         # Format messages for Claude
-        full_message_content = format_all_message_contents(messages)
+        full_project_message_contents = format_all_project_messages(messages)
 
         # Add the task instruction to the last message
         user_prompt = create_summarization_user_prompt(date_range_description, summary_type)
@@ -114,8 +127,8 @@ async def summarize_timeline_recap_element(
                 "role": "user",
                 "content": [
                     {"type": "text", "text": project_context_content},
-                    {"type": "text", "text": "below is all the communication messages to summarize:"},
-                    full_message_content,
+                    {"type": "text", "text": user_own_identities_content},
+                    {"type": "text", "text": full_project_message_contents},
                     {"type": "text", "text": user_prompt},
                 ],
             },
@@ -126,7 +139,7 @@ async def summarize_timeline_recap_element(
             system_prompt=system_prompt,
             messages=formatted_messages,
             temperature=0.3,  # Lower temperature for more consistent summaries
-            max_tokens=1500,  # Limit response to avoid verbosity
+            max_tokens=1800,  # Limit response to avoid verbosity
         )
 
         # Extract the summary text
@@ -140,7 +153,7 @@ async def summarize_timeline_recap_element(
         raise GeneralServerError("An error occurred while generating the summary.")
 
 
-async def generate_daily_summary(start_date: datetime, messages: List[Dict[str, Any]], project_context: str = "") -> str:
+async def generate_daily_summary(start_date: datetime, user_identifies: str, messages: List[Dict[str, Any]], project_context: str = "") -> str:
     """
     Generate a daily summary for the given date range.
     """
@@ -148,11 +161,13 @@ async def generate_daily_summary(start_date: datetime, messages: List[Dict[str, 
     date_str = start_date.strftime("%B %d, %Y")
 
     return await summarize_timeline_recap_element(
-        messages=messages, date_range_description=date_str, summary_type="daily", project_context=project_context
+        messages=messages, user_identifies=user_identifies, date_range_description=date_str, summary_type="daily", project_context=project_context
     )
 
 
-async def generate_weekly_summary(start_date: datetime, end_date: datetime, messages: List[Dict[str, Any]], project_context: str = "") -> str:
+async def generate_weekly_summary(
+    start_date: datetime, user_identifies: str, end_date: datetime, messages: List[Dict[str, Any]], project_context: str = ""
+) -> str:
     """
     Generate a weekly summary for the given date range.
     """
@@ -162,5 +177,5 @@ async def generate_weekly_summary(start_date: datetime, end_date: datetime, mess
     date_range = f"{start_str} - {end_str}"
 
     return await summarize_timeline_recap_element(
-        messages=messages, date_range_description=date_range, summary_type="weekly", project_context=project_context
+        messages=messages, user_identifies=user_identifies, date_range_description=date_range, summary_type="weekly", project_context=project_context
     )

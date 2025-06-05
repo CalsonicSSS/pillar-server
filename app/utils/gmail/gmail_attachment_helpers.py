@@ -16,7 +16,7 @@ from supabase._async.client import AsyncClient
 from app.models.document_models import DocumentUploadRequest
 
 
-# extracts ALL attachments metadata only from a single email (emails can have multiple files)
+# extracts ALL attachments metadata only from a single email (a single email can have possibly multiple files)
 def extract_gmail_attachments_metadata(fetched_full_gmail_message: Dict[str, Any]) -> List[Dict[str, Any]]:
     """
     Extract attachment metadata from Gmail message (without downloading files yet).
@@ -93,7 +93,7 @@ def extract_gmail_attachments_metadata(fetched_full_gmail_message: Dict[str, Any
 # -------------------------------------------------------------------------------------------------------------------------------------
 
 
-# to retrieve Gmail actual attachment body content based on the specific attachment_id withint that specific email
+# to retrieve Gmail actual attachment body content based on the specific attachment_id within that specific email
 def retrieve_gmail_attachment_body(oauth_data: Dict[str, Any], message_id: str, attachment_id: str) -> Optional[bytes]:
     """
     Download attachment content from Gmail API.

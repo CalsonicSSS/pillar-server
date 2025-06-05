@@ -134,7 +134,7 @@ async def gmail_channel_reoauth_process(supabase: AsyncClient, user_id: UUID):
 
 
 # this is only called when
-# 1. user has existing gmail oauth credentials and they are invalidated
+# 1. user needs new token refresh process with re-oauth
 # 2. user has no existing gmail oauth credentials yet and this must means a new gmail channel created
 async def gmail_channel_oauth_complete_callback(
     supabase: AsyncClient, httpx_client: httpx.AsyncClient, auth_code: str, state: str
@@ -179,7 +179,7 @@ async def gmail_channel_oauth_complete_callback(
 
             # at this point, we will re-start the gmail channel watch for this user
             # this "start_gmail_user_watch" will also use "update_user_oauth_credentials_by_channel_type" to update by including the "watch_info" field and hist ID
-            watch_result = await start_gmail_user_watch(supabase, UUID(user_id))
+            watch_result = await start_gmail_user_watch(supabase, user_id)
             print(f"Gmail watch started automatically here after re-oauth progress completed: {watch_result}")
 
             return GmailOAuthCallbackCompletionResponse(**{"status": "success", "status_message": "Gmail credentials refreshed successfully."})
@@ -203,7 +203,7 @@ async def gmail_channel_oauth_complete_callback(
         if not project_result.data:
             raise DataBaseError(error_detail_message="Project not found")
 
-        user_id = project_result.data[0]["user_id"]
+        user_id = UUID(project_result.data[0]["user_id"])
 
         # Exchange auth code for tokens (google standard ds)
         token_data = await exchange_auth_code_for_tokens(auth_code, httpx_client)
@@ -215,7 +215,7 @@ async def gmail_channel_oauth_complete_callback(
         user_oauth_data = {"tokens": token_data, "user_info": user_info}
 
         # Store gmail channel OAuth credentials for this specific user for the first time
-        await create_user_oauth_credentials_by_channel_type(supabase, UUID(user_id), "gmail", user_oauth_data)
+        await create_user_oauth_credentials_by_channel_type(supabase, user_id, "gmail", user_oauth_data)
 
         print("gmail initial oauth_data exchanged and stored complete:", user_oauth_data)
 
@@ -224,7 +224,7 @@ async def gmail_channel_oauth_complete_callback(
 
         # start watching for the gmail channel for this user
         # this "start_gmail_user_watch" will also use "update_user_oauth_credentials_by_channel_type" to update by including the "watch_info" field and hist ID
-        watch_result = await start_gmail_user_watch(supabase, UUID(user_id))
+        watch_result = await start_gmail_user_watch(supabase, user_id)
         print(f"Gmail watch started automatically here after oauth progress completed: {watch_result}")
 
         return GmailOAuthCallbackCompletionResponse(
@@ -239,4 +239,4 @@ async def gmail_channel_oauth_complete_callback(
 
     except Exception as e:
         print(traceback.format_exc())
-        raise GeneralServerError(error_detail_message="Failed to complete Gmail authorization")
+        raise GeneralServerError(error_detail_message="Failed to complete Gmail authorization or gmail watch")

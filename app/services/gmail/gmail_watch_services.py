@@ -100,7 +100,7 @@ async def stop_gmail_user_watch(supabase: AsyncClient, user_id: UUID) -> Dict[st
         # Save updated OAuth data
         await update_user_oauth_credentials_by_channel_type(supabase, user_id, "gmail", user_gmail_oauth_data)
 
-        return {"status": "success", "message": "Gmail watch stopped successfully", "user_id": str(user_id)}
+        return {"status": "success", "message": "Gmail watch stopped successfully"}
 
     except (DataBaseError, UserOauthError):
         raise
@@ -200,9 +200,9 @@ async def schedule_gmail_watch_renewals(supabase: AsyncClient) -> None:
 
     try:
         # Query all Gmail OAuth credentials
-        oauth_credentials_result = await supabase.table("user_oauth_credentials").select("*").eq("channel_type", "gmail").execute()
+        gmail_oauth_credentials_result = await supabase.table("user_oauth_credentials").select("*").eq("channel_type", "gmail").execute()
 
-        if not oauth_credentials_result.data:
+        if not gmail_oauth_credentials_result.data:
             logger.info("No Gmail OAuth credentials found, nothing to renew")
             return
 
@@ -210,7 +210,7 @@ async def schedule_gmail_watch_renewals(supabase: AsyncClient) -> None:
         error_count = 0
 
         # Check each credential for watch expiration
-        for credential in oauth_credentials_result.data:
+        for credential in gmail_oauth_credentials_result.data:
             try:
                 user_id = credential.get("user_id")
 

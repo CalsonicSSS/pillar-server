@@ -9,9 +9,9 @@ claude_client = AsyncAnthropic(api_key=app_config_settings.ANTHROPIC_API_KEY)
 async def claude_message_api(
     system_prompt: str,
     messages: List[Dict[str, str]],
+    temperature: float,
+    max_tokens: int,
     model: str = app_config_settings.CLAUDE_MODEL_HAIKU_3_5,
-    temperature: float = 0.2,
-    max_tokens: int = 2000,
 ):
     """
     Send a message to Claude and get a response.

@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, Body
 from app.models.project_models import ProjectCreate, ProjectResponse, ProjectUpdate
-from app.services.project_services import create_new_project, get_projects, get_project_by_id, update_project
+from app.services.project_services import create_new_project, get_user_projects, get_project_by_id, update_project
 from app.utils.app_states import get_async_supabase_client
 from typing import List, Optional
 from uuid import UUID
@@ -13,13 +13,13 @@ project_router = APIRouter(prefix="/projects", tags=["projects"])
 
 
 @project_router.get("/", response_model=List[ProjectResponse])
-async def get_projects_handler(
+async def get_user_projects_handler(
     status: Optional[str] = Query(None, description="Filter projects by status"),
     supabase: AsyncClient = Depends(get_async_supabase_client),
     user_id: UUID = Depends(verify_jwt_and_get_user_id),
 ):
     print("/projects route reached")
-    return await get_projects(supabase, user_id, status)
+    return await get_user_projects(supabase, user_id, status)
 
 
 @project_router.post("/", response_model=ProjectResponse)

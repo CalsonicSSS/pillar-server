@@ -9,6 +9,7 @@ from app.utils.user_auth import verify_jwt_and_get_user_id
 gmail_watch_router = APIRouter(prefix="/gmail/watch", tags=["gmail-watch"])
 
 
+# this is the manual request based gmail watch api trigger. Frontend side typically wont need to trigger this
 @gmail_watch_router.post("/start")
 async def start_gmail_user_watch_handler(
     supabase: AsyncClient = Depends(get_async_supabase_client),

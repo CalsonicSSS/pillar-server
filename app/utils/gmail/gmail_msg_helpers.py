@@ -87,7 +87,7 @@ def batch_get_gmail_full_messages(user_oauth_data: Dict[str, Any], message_ids: 
     Returns:
         List of full message objects
     """
-    print(f"batch_get_gmail_full_messages runs for {len(message_ids)} messages")
+    print(f"batch_get_gmail_full_messages runs.... for {len(message_ids)} messages")
     try:
         if not message_ids:
             return []

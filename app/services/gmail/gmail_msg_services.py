@@ -12,6 +12,7 @@ from app.utils.gmail.gmail_msg_helpers import (
 )
 from app.services.user_oauth_credential_services import get_user_oauth_credentials_by_channel_type
 from app.models.oauth_process_models import GmailContactsInitialMessagesFetchRequest, GmailContactsInitialMessagesFetchResponse
+from app.services.project_services import get_project_by_id
 
 
 # this function will be run whenever a new contact is added by user in the frontend after a project is created under a gmail channel is connected
@@ -24,9 +25,13 @@ async def fetch_and_store_gmail_messages_from_all_contacts(
     print("fetch_and_store_gmail_messages_from_all_contacts function runs")
     channel_id = gmail_message_fetch_info.channel_id
     contact_ids = gmail_message_fetch_info.contact_ids
-    start_date = gmail_message_fetch_info.start_date
+    project_id = gmail_message_fetch_info.project_id
 
     try:
+        target_project = await get_project_by_id(supabase, project_id, user_id)
+
+        project_start_date = target_project.start_date
+
         # Verify channel belongs to user's project
         channel_verification_result = await supabase.rpc(
             "get_channel_with_user_verification", {"channel_id_param": str(channel_id), "user_id_param": str(user_id)}
@@ -69,10 +74,10 @@ async def fetch_and_store_gmail_messages_from_all_contacts(
                 continue
 
             # Format dates for Gmail API (YYYY/MM/DD format)
-            start_date_str = start_date.strftime("%Y/%m/%d")
+            start_date_str = project_start_date.strftime("%Y/%m/%d")
             end_date_str = datetime.now()
 
-            # Fetch all message ids for this specific contact within the date range
+            # Fetch all message ids for this specific contact within the date range, with start date must be the project start_date
             print(f"Fetching messages for contact: {contact_identifier}")
             contact_msg_ids = fetch_gmail_msg_ids_for_contact_in_date_range(
                 oauth_data=user_gmail_oauth_data,

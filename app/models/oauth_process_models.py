@@ -19,9 +19,9 @@ class GmailOAuthCallbackCompletionResponse(BaseModel):
 
 
 class GmailContactsInitialMessagesFetchRequest(BaseModel):
+    project_id: UUID
     channel_id: UUID
     contact_ids: list[UUID]
-    start_date: datetime
 
 
 class GmailContactsInitialMessagesFetchResponse(BaseModel):
