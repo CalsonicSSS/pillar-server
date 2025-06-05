@@ -215,7 +215,7 @@ async def generate_to_be_summarized_timeline_recap_summaries(
 
         # so far we will only get the user's own gmail channel identify only
         # we will later make this dynamic to include all possible user identifies from all different channels
-        target_user_gmail_oauth_credentials = get_user_oauth_credentials_by_channel_type(supabase, user_id, "gmail")
+        target_user_gmail_oauth_credentials = await get_user_oauth_credentials_by_channel_type(supabase, user_id, "gmail")
         target_user_gmail_address = target_user_gmail_oauth_credentials["oauth_data"]["user_info"]["emailAddress"]
         user_identifies = f"gmail: {target_user_gmail_address}"
 
@@ -343,7 +343,7 @@ async def schedule_daily_recaps_update(supabase: AsyncClient) -> None:
 
             # so far we will only get the user's own gmail channel identify only
             # we will later make this dynamic to include all possible user identifies from all different channels
-            target_user_gmail_oauth_credentials = get_user_oauth_credentials_by_channel_type(supabase, user_id, "gmail")
+            target_user_gmail_oauth_credentials = await get_user_oauth_credentials_by_channel_type(supabase, user_id, "gmail")
             target_user_gmail_address = target_user_gmail_oauth_credentials["oauth_data"]["user_info"]["emailAddress"]
             user_identifies = f"gmail: {target_user_gmail_address}"
 
@@ -457,7 +457,7 @@ async def schedule_weekly_recaps_update(supabase: AsyncClient) -> None:
 
             # so far we will only get the user's own gmail channel identify only
             # we will later make this dynamic to include all possible user identifies from all different channels
-            target_user_gmail_oauth_credentials = get_user_oauth_credentials_by_channel_type(supabase, user_id, "gmail")
+            target_user_gmail_oauth_credentials = await get_user_oauth_credentials_by_channel_type(supabase, user_id, "gmail")
             target_user_gmail_address = target_user_gmail_oauth_credentials["oauth_data"]["user_info"]["emailAddress"]
             user_identifies = f"gmail: {target_user_gmail_address}"
 

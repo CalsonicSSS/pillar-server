@@ -130,7 +130,7 @@ async def fetch_and_store_gmail_messages_from_all_contacts(
 
             # Small delay between contacts to avoid rate limiting
             if contact_id != contact_ids[-1]:
-                await asyncio.sleep(0.5)
+                await asyncio.sleep(0.3)
 
         return GmailContactsInitialMessagesFetchResponse(
             status="success",

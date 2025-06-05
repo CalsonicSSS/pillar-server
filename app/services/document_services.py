@@ -54,6 +54,7 @@ async def get_project_documents(
         if source_filter:
             query = query.eq("source", source_filter)
 
+        # no need to do ", desc=True" here as this will also fetch docs in time desc order
         result = await query.order("created_at").execute()
 
         return [DocumentResponse(**doc) for doc in result.data]
