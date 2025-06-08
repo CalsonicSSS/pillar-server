@@ -49,7 +49,7 @@ async def get_project_channels(supabase: AsyncClient, project_id: UUID, user_id:
             raise UserAuthError(error_detail_message="Project not found or access denied")
 
         # Get channels for the project
-        result = await supabase.table("channels").select("*").eq("project_id", str(project_id)).execute()
+        result = await supabase.table("channels").select("*").eq("project_id", str(project_id)).order("created_at", desc=True).execute()
 
         return [ChannelResponse(**channel) for channel in result.data]
 

@@ -46,7 +46,7 @@ async def get_project_timeline_recap(supabase: AsyncClient, project_id: UUID, us
             .eq("project_id", str(project_id))
             .eq("summary_type", "weekly")
             .order("start_date", desc=True)
-            .limit(4)
+            .limit(2)
             .execute()
         )
 

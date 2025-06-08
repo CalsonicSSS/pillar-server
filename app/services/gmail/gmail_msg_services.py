@@ -97,7 +97,7 @@ async def fetch_and_store_gmail_messages_from_all_contacts(
 
             for contact_full_msg in contact_full_msgs:
                 try:
-                    # Check if message already exists
+                    # Check if message already exists with platform_message_id and contact_id both to avoid stored duplicated ones
                     existing_message = (
                         await supabase.table("messages")
                         .select("id")

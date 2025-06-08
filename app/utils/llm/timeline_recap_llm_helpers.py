@@ -10,29 +10,35 @@ def create_summarization_system_prompt() -> str:
     Your role is to summarize communication messages between user ("accounting professionals") and their clients efficiently within a specific PROJECT SCOPE. 
     Focusing on what matters most to accounting work and based on all the messages provided.
     Provide only the summary in bullet point format in the end, with no additional text or commentary.
-
-    user's communication message with her clients can takes place across gmail, teams, slack, and other possible work communication channels.    
     """
     return system_prompt
 
 
-def create_summarization_user_prompt(date_range_description: str, summary_type: str = "daily") -> str:
+def create_summarization_user_prompt(
+    date_range_description: str,
+    user_own_identities_context: str,
+    project_context_content: str,
+    summary_type: str,
+) -> str:
     time_scope = "day" if summary_type == "daily" else "week"
-    user_prompt = f"""Please summarize the communications from {date_range_description} into a concise summary.
+    user_prompt = f"""Please summarize all the communication messages above from {date_range_description} date range into a concise summary within this project for me.
 
+Additional important context:
+- {user_own_identities_context}
+- {project_context_content}
+    
 Task Guidelines:
-1. Carefully go through all the provided communication messages, and summarize them in bullet points. 
-2. Focus your summary on key information, insights, message attachment(s), and important action items to be highlighted in your summary response based on all provided communication messages.
-3. There could be messages between my clients and I that are unrelated to accounting work and not important to summarize, Use your judgement to focus on the messages that are relevant to work only.
-4. pay attention if I have provided any non-empty "project context" for this project as additional context for your task. Use them accordingly as additional background context for your summarization task.
-
+1. Carefully review all provided communication messages and summarize them in bullet points.
+2. For each message, pay close attention to: "From (sender)", "To (recipients)", "Message subject (if available)", "Attachments (if available)", and "Message body".
+3. Use the "Myself identifies" context to accurately distinguish which messages are sent **by me**, and which are sent **by my client contacts**. Prioritize the summary on key information from client messages and any significant responses or actions from me, to clearly map out the all the key stakeholders relationships and work-related exchanges within the project (VERY IMPORTANT AND MUST).
+4. Focus your summary on key content, insights, attachments, and important action items. Exclude non-work-related or social messages unless they are directly relevant to project tasks.
+5. If I have provided any non-empty "project context", use it as background to better interpret and prioritize the relevance of communication content.
 
 Response Format:
 1. Format your entire response with bullet points based output only (without any other generate content besides the generated bullet points), with each point on a new line starting with "•"
-2. Make sure each bullet point is concise and to the point.
-3. Make sure your total summarization bullet points counts are also concise and limit them as much as possible as well. 
-4. Use professional, direct language.
-5. If there are no communications message or entire provide communication messages are non-work related, your only bullet point should be "• No important summary during this {time_scope}."
+2. Make sure your overall summarization bullet points are concise and straight to the point.
+3. Use professional, direct language.
+4. If there are no communications message or entire provide communication messages are non-work related, your only bullet point should be "• No important summary during this {time_scope}."
 """
 
     return user_prompt
@@ -72,7 +78,7 @@ def format_all_project_messages(messages: List[Dict[str, Any]]) -> List[Dict[str
 
         # we will later need to find ways to dynamic find message's corresponding channel type
         # so far we only have gmail channel type enabled
-        all_message_contents += f"message channel type: gmail"
+        # all_message_contents += f"message channel type: gmail"
 
         all_message_contents += f"available attachments: {attachments}"
 
@@ -83,7 +89,7 @@ def format_all_project_messages(messages: List[Dict[str, Any]]) -> List[Dict[str
         if len(body) > 2500:
             body = body[:2500] + "... [truncated]"
 
-        all_message_contents += f"Message:\n{body}\n\n"
+        all_message_contents += f"Message body:\n{body}\n\n"
         all_message_contents += "-" * 40 + "\n\n\n\n"
 
     return all_message_contents
@@ -109,9 +115,13 @@ async def summarize_timeline_recap_element(
         Summary string in bullet point format
     """
     try:
-        project_context_content = f"Here is my project context for you to review: {project_context}"
+        project_context_content = f"Here is my additional 'project context' for you to know: {project_context}"
 
-        user_own_identities_content = f"Here are my own identities from different channels within this project for you to recognize: {user_identifies}. Please recognize who is me and who are my client contacts within this project"
+        user_own_identities_context = f"""
+            'Myself identifies':
+            
+            These are my own identities across different channels within this project: {user_identifies}. 
+            Please use this information to distinguish between me (myself) and my clients when generating summaries based on all messages from these channels in this single project."""
 
         # Create system prompt
         system_prompt = create_summarization_system_prompt()
@@ -120,14 +130,12 @@ async def summarize_timeline_recap_element(
         full_project_message_contents = format_all_project_messages(messages)
 
         # Add the task instruction to the last message
-        user_prompt = create_summarization_user_prompt(date_range_description, summary_type)
+        user_prompt = create_summarization_user_prompt(date_range_description, user_own_identities_context, project_context_content, summary_type)
 
         formatted_messages = [
             {
                 "role": "user",
                 "content": [
-                    {"type": "text", "text": project_context_content},
-                    {"type": "text", "text": user_own_identities_content},
                     {"type": "text", "text": full_project_message_contents},
                     {"type": "text", "text": user_prompt},
                 ],

@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, Path, Query
+from fastapi import APIRouter, Depends, Body, Path, Query
 from typing import List, Dict, Any, Optional
 from uuid import UUID
 from datetime import datetime
@@ -61,6 +61,7 @@ async def mark_message_as_read_handler(
     message_id: UUID = Path(...),
     supabase: AsyncClient = Depends(get_async_supabase_client),
     user_id: UUID = Depends(verify_jwt_and_get_user_id),
+    message_update_payload: MessageUpdate = Body(...),
 ):
     print("/messages/{message_id}/read PATCH route reached")
-    return await mark_message_as_read(supabase, message_id, user_id, MessageUpdate(is_read=True))
+    return await mark_message_as_read(supabase, message_id, user_id, message_update_payload)

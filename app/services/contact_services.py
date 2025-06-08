@@ -58,7 +58,7 @@ async def get_channel_contacts(supabase: AsyncClient, channel_id: UUID, user_id:
             raise UserAuthError(error_detail_message="Channel not found or access denied")
 
         # Get contacts
-        result = await supabase.table("contacts").select("*").eq("channel_id", str(channel_id)).execute()
+        result = await supabase.table("contacts").select("*").eq("channel_id", str(channel_id)).order("updated_at", desc=True).execute()
         return [ContactResponse(**contact) for contact in result.data]
 
     except UserAuthError:
@@ -98,7 +98,7 @@ async def get_contact_by_id(supabase: AsyncClient, contact_id: UUID, user_id: UU
 # ------------------------------------------------------------------------------------------------------------------------
 
 
-async def update_contact(supabase: AsyncClient, contact_id: UUID, user_id: UUID, contact_update: ContactUpdate) -> ContactResponse:
+async def update_contact(supabase: AsyncClient, contact_id: UUID, user_id: UUID, contact_update_payload: ContactUpdate) -> ContactResponse:
     """
     Update a specific contact.
     Verifies that the contact belongs to a channel in a project owned by the user.
@@ -106,7 +106,7 @@ async def update_contact(supabase: AsyncClient, contact_id: UUID, user_id: UUID,
     print("update_contact service function runs")
     try:
         # Get only non-None values to update
-        update_data = {k: v for k, v in contact_update.model_dump().items() if v is not None}
+        update_data = {k: v for k, v in contact_update_payload.model_dump().items() if v is not None}
 
         if not update_data:
             # If nothing to update, just return the current contact

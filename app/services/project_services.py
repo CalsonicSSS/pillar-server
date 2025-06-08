@@ -11,7 +11,7 @@ from datetime import datetime, timezone
 async def get_user_projects(supabase: AsyncClient, user_id: UUID, status: Optional[str] = None) -> List[ProjectResponse]:
     print("get_projects service function runs")
 
-    query = supabase.table("projects").select("*").eq("user_id", str(user_id))
+    query = supabase.table("projects").select("*").eq("user_id", str(user_id)).order("created_at", desc=True)
 
     if status:
         query = query.eq("status", status)

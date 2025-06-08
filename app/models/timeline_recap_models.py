@@ -24,7 +24,7 @@ class RecapSummaryResponse(RecapSummaryBase):
 
 class TimelineRecapResponse(BaseModel):
     recent_activity: List[RecapSummaryResponse]  # Past 3 days
-    past_4_weeks: List[RecapSummaryResponse]  # Past 4 weeks
+    past_2_weeks: List[RecapSummaryResponse]  # Past 4 weeks
 
 
 # ---------------------------------------------------------------------

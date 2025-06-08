@@ -43,12 +43,12 @@ async def get_contact_by_id_handler(
 @contact_router.patch("/{contact_id}", response_model=ContactResponse)
 async def update_contact_handler(
     contact_id: UUID = Path(...),
-    contact_update: ContactUpdate = Body(...),
+    contact_update_payload: ContactUpdate = Body(...),
     supabase: AsyncClient = Depends(get_async_supabase_client),
     user_id: UUID = Depends(verify_jwt_and_get_user_id),
 ):
     print("/contacts/{contact_id} PATCH route reached")
-    return await update_contact(supabase, contact_id, user_id, contact_update)
+    return await update_contact(supabase, contact_id, user_id, contact_update_payload)
 
 
 @contact_router.delete("/{contact_id}", response_model=ContactDeletionResponse)

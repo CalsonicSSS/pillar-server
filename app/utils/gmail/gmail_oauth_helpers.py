@@ -9,7 +9,16 @@ from fastapi import Depends
 from app.utils.app_states import get_async_httpx_client
 
 
-# This function creates the URL that the frontend will navigate to google account directly for authentication
+# this function: Generating the OAuth Consent Screen URL (pointing to Google's OAuth 2.0 authorization endpoint)
+# 1. used for user to nav to oauth consent flow page
+# 2. they are presented with Google's OAuth consent screen. Here, they can review the permissions your application is requesting.
+# 3. After the user grants consent by clicking "Continue" or "Allow," the browser sends a request to Google's authorization server.
+#    (This request includes the parameters initially specified here, such as client_id, redirect_uri, response_type=code, scope, and state)
+# 4. Then, authorization server processes this request, generates an authorization code -> responds to the browser with an HTTP 302 redirect response.
+# 5. The browser then follows this redirect, sending a GET request to redirect_uri.
+
+
+# This redirection is a client-side browser operation only. The GET REQUEST with redirect_uri
 def generate_gmail_oauth_url(state: str) -> str:
     """
     Generate a Google OAuth authorization URL for Gmail integration.
@@ -20,28 +29,26 @@ def generate_gmail_oauth_url(state: str) -> str:
     Returns:
         The authorization URL to redirect the user to
     """
-    # Define OAuth parameters
-    # all fields here are necessary despite the same setup you have on the GCP
-    # GCP is only for declaring and verification purpose
-    # when the user is actually redirected to the Google OAuth consent screen via the URL you generate, it authorizes only the scopes explicitly passed in the URL here.
+
+    # These parameters configure the consent screen and define the permissions your application is requesting.
     params = {
         "client_id": app_config_settings.GOOGLE_CLIENT_ID,
-        "redirect_uri": app_config_settings.GOOGLE_REDIRECT_URI,  # this is specify which redirect URI to use after user consent for this client ID setup on GCP
+        "redirect_uri": app_config_settings.GOOGLE_REDIRECT_URI,
         "response_type": "code",  # tells Google we want an authorization code
-        "scope": app_config_settings.GOOGLE_SCOPES,  # Google expects the scope parameter in the authorization URL to be a space-separated string of scopes
+        "scope": app_config_settings.GOOGLE_SCOPES,
         "access_type": "offline",  # It requests a refresh token in addition to the access token
         "prompt": "consent",  # Force consent screen to ensure refresh token is always provided
         "state": state,
     }
 
-    # Create authorization URL
-    auth_url = f"https://accounts.google.com/o/oauth2/auth?{urlencode(params)}"
-    return auth_url
+    oauth_url = f"https://accounts.google.com/o/oauth2/auth?{urlencode(params)}"
+    return oauth_url
 
 
 # ------------------------------------------------------------------------------------------------------------------------
 
 
+# exchange an authorization code for both access token and refresh token.
 async def exchange_auth_code_for_tokens(auth_code: str, httpx_client: httpx.AsyncClient = Depends(get_async_httpx_client)) -> Dict[str, Any]:
     """
     Exchange an authorization code for access and refresh tokens from Google.
@@ -58,10 +65,10 @@ async def exchange_auth_code_for_tokens(auth_code: str, httpx_client: httpx.Asyn
         access_token_exchange_url = "https://oauth2.googleapis.com/token"
         payload = {
             "client_id": app_config_settings.GOOGLE_CLIENT_ID,
-            "client_secret": app_config_settings.GOOGLE_CLIENT_SECRET,  # It's sent server-to-server (never exposed to frontend) over HTTPS, which is secure
-            "code": auth_code,  # the authorization code received from Google after user consent
-            "redirect_uri": app_config_settings.GOOGLE_REDIRECT_URI,  # this must be used again here for security reasons so attackers can't use the code
-            "grant_type": "authorization_code",
+            "client_secret": app_config_settings.GOOGLE_CLIENT_SECRET,
+            "code": auth_code,
+            "redirect_uri": app_config_settings.GOOGLE_REDIRECT_URI,
+            "grant_type": "authorization_code",  # authorization_code will always exchange both tokens (very important)
         }
 
         response = await httpx_client.post(access_token_exchange_url, data=payload)

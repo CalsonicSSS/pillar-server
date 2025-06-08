@@ -67,11 +67,10 @@ async def initialize_gmail_channel_create_and_oauth(supabase: AsyncClient, proje
         channel_id = channel_result.model_dump()["id"]
 
         # Check if user already has Gmail OAuth credentials TYPE exist (this is based on all project basis for this user)
-        user_gmail_credentials = await get_user_oauth_credentials_by_channel_type(supabase, user_id, "gmail")
+        existing_user_gmail_credentials = await get_user_oauth_credentials_by_channel_type(supabase, user_id, "gmail")
 
-        # If user already has OAuth credentials FOR GMAIL TYPE, update channel as connected and return directly, we will NOT go through oauth process here
-        # this logic so far only LETS SPECIFIC USER TO CONNECT ONE SINGLE GMAIL ACCOUNT (we dont support multi-gmail account oauth so far for each single user)
-        if user_gmail_credentials:
+        # # User already went through google gmail OAuth already previously in another project - directly reuse tokens without oauth again
+        if existing_user_gmail_credentials:
             # Update channel as connected directly
             print("user already has initial gmail oauth credentials")
             await update_channel(supabase, channel_id, user_id, ChannelUpdate(is_connected=True))
@@ -84,7 +83,7 @@ async def initialize_gmail_channel_create_and_oauth(supabase: AsyncClient, proje
                 }
             )
 
-        # Otherwise, generate OAuth URL with channel_id as state parameter
+        # Otherwise, its a first time for user, generate OAuth URL for whole oauth flow
         print("user dont have initial gmail oauth credentials, generate oauth url")
         oauth_url = generate_gmail_oauth_url(channel_id)
 
@@ -109,8 +108,8 @@ async def initialize_gmail_channel_create_and_oauth(supabase: AsyncClient, proje
 async def gmail_channel_reoauth_process(supabase: AsyncClient, user_id: UUID):
     print("gmail_reoauth_process function runs")
     # find existing user's invalided credentials for Gmail type
-    user_gmail_credentials = await get_user_oauth_credentials_by_channel_type(supabase, user_id, "gmail")
-    if user_gmail_credentials:
+    existing_user_gmail_credentials = await get_user_oauth_credentials_by_channel_type(supabase, user_id, "gmail")
+    if existing_user_gmail_credentials:
         # Generate a refresh state with special format
         refresh_state = f"refresh_{str(user_id)}"
 
@@ -178,7 +177,7 @@ async def gmail_channel_oauth_complete_callback(
             await update_user_oauth_credentials_by_channel_type(supabase, user_id, "gmail", user_oauth_data)
 
             # at this point, we will re-start the gmail channel watch for this user
-            # this "start_gmail_user_watch" will also use "update_user_oauth_credentials_by_channel_type" to update by including the "watch_info" field and hist ID
+            # this "start_gmail_user_watch" will also use "update_user_oauth_credentials_by_channel_type" to update by including the "watch_info" field
             watch_result = await start_gmail_user_watch(supabase, user_id)
             print(f"Gmail watch started automatically here after re-oauth progress completed: {watch_result}")
 

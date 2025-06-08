@@ -11,6 +11,7 @@ from app.services.user_oauth_credential_services import update_user_oauth_creden
 
 
 # this is the process logic that will be only triggered by each of the Gmail Pub/Sub notification http request sent by Google
+# particularly request is sent by the specific Subscriptions setup on GCP within the pub/sub system
 async def process_gmail_pub_sub_notifications(request: Request, supabase: AsyncClient) -> Dict[str, Any]:
     """
     Handle and process Gmail notifications sent by Google Pub/Sub.
@@ -267,7 +268,7 @@ async def process_gmail_pub_sub_notifications(request: Request, supabase: AsyncC
                 "new_msg_saved": messages_saved,
             }
 
-        # If we can't find the message data, log an error
+        # If we can't find the ["message"]["data"] at all within the notification request paylad, log an error
         print("Error: No message data found in notification payload")
         return {"status": "error", "message": "No message data found in notification payload"}
 

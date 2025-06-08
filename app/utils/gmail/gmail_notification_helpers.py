@@ -4,6 +4,7 @@ from app.custom_error import UserOauthError
 from app.utils.gmail.gmail_api_service import create_gmail_service
 
 
+# this is to get the delta of msg ids from the specified current hist_id as starting point to the time point when history list api is called
 def get_gmail_history_delta_msg_ids(user_oauth_data: Dict[str, Any], current_user_gmail_history_id: str, max_results: int = 1000) -> Dict[str, Any]:
     """
     Get history of Gmail changes since the provided history ID.
@@ -24,7 +25,7 @@ def get_gmail_history_delta_msg_ids(user_oauth_data: Dict[str, Any], current_use
         # Request parameters
         history_params = {
             "startHistoryId": current_user_gmail_history_id,
-            "historyTypes": ["messageAdded", "labelAdded"],  # Only care about new messages and label changes
+            "historyTypes": ["messageAdded", "labelAdded"],  # messageAdded alone Captures Both Directions INBOX / SENT (matching watch api config)
         }
 
         # Get history: we call this to retrieve the list of changes (history records) that occurred since that startHistoryId.

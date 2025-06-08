@@ -25,20 +25,21 @@ def fetch_gmail_msg_ids_for_contact_in_date_range(
     try:
         gmail_service = create_gmail_service(oauth_data)
 
-        next_day = (end_date + timedelta(days=1)).strftime("%Y/%m/%d")
-        print(f"Start date: {start_date}, End date: {next_day}")
+        # we do next 2 days range to account for the edge case of when user fetch this near the end of "today"
+        next_two_day = (end_date + timedelta(days=2)).strftime("%Y/%m/%d")
+        print(f"Start date: {start_date}, End date: {next_two_day}")
 
         # Build search query - CAPTURES BOTH SENT AND RECEIVED
         # from:{contact_email} = Messages FROM contact TO user (RECEIVED)
         # to:{contact_email} = Messages FROM user TO contact (SENT)
-        query = f"(from:{contact_email} OR to:{contact_email}) after:{start_date} before:{next_day}"
+        query = f"(from:{contact_email} OR to:{contact_email}) after:{start_date} before:{next_two_day}"
         print(f"Query (both directions): {query}")
 
-        initial_response = gmail_service.users().messages().list(userId="me", q=query, maxResults=min(max_results, 100)).execute()
-        print(f"First raw fetch Response: {initial_response}")
+        initial_msg_id_list_response = gmail_service.users().messages().list(userId="me", q=query, maxResults=min(max_results, 100)).execute()
+        print(f"First msg ids fetch response: {initial_msg_id_list_response}")
 
-        fetched_raw_messages = initial_response.get("messages", [])
-        next_page_token = initial_response.get("nextPageToken")
+        fetched_raw_messages = initial_msg_id_list_response.get("messages", [])
+        next_page_token = initial_msg_id_list_response.get("nextPageToken")
 
         while next_page_token and len(fetched_raw_messages) < max_results:
             page_response = (

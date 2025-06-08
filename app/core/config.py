@@ -30,6 +30,8 @@ class Settings(BaseSettings):
     # claude llm api
     ANTHROPIC_API_KEY: str  # Claude API key
     CLAUDE_MODEL_HAIKU_3_5: str = "claude-3-5-haiku-20241022"
+    CLAUDE_MODEL_SONNET_4: str = "claude-sonnet-4-20250514"
+    CLAUDE_MODEL_SONNET_3_7: str = "claude-3-7-sonnet-20250219"
 
     class Config:
         env_file = ".env"

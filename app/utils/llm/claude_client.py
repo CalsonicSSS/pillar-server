@@ -11,7 +11,7 @@ async def claude_message_api(
     messages: List[Dict[str, str]],
     temperature: float,
     max_tokens: int,
-    model: str = app_config_settings.CLAUDE_MODEL_HAIKU_3_5,
+    model: str = app_config_settings.CLAUDE_MODEL_SONNET_4,
 ):
     """
     Send a message to Claude and get a response.
