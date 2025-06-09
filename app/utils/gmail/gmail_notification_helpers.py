@@ -29,7 +29,7 @@ async def get_gmail_history_delta_msg_ids(
         # Request parameters
         history_params = {
             "startHistoryId": current_user_gmail_history_id,
-            "historyTypes": ["messageAdded", "labelAdded"],  # messageAdded alone Captures Both Directions INBOX / SENT (matching watch api config)
+            "historyTypes": ["messageAdded"],  # messageAdded alone Captures Both Directions INBOX / SENT (matching watch api config)
         }
 
         # Get history: we call this to retrieve the list of changes (history records) that occurred since that startHistoryId.
