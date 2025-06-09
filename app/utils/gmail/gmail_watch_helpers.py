@@ -3,9 +3,11 @@ import traceback
 from datetime import datetime, timezone, timedelta
 from app.custom_error import UserOauthError, GeneralServerError
 from app.utils.gmail.gmail_api_service import create_gmail_service
+from supabase._async.client import AsyncClient
+from uuid import UUID
 
 
-def start_gmail_watch(oauth_data: Dict[str, Any], topic_name: str = "projects/pillar-mvp/topics/pillar-gmail-notifications") -> Dict[str, Any]:
+async def start_gmail_watch(oauth_data: Dict[str, Any], topic_name: str, supabase: AsyncClient, user_id: UUID) -> Dict[str, Any]:
     """
     Start watching a specific user Gmail account for real-time changes using the Watch API.
     WATCHES BOTH INBOX AND SENT for complete conversation tracking.
@@ -20,7 +22,7 @@ def start_gmail_watch(oauth_data: Dict[str, Any], topic_name: str = "projects/pi
     print("start_gmail_watch function runs...")
     try:
         # Create Gmail service
-        gmail_service = create_gmail_service(oauth_data)
+        gmail_service = await create_gmail_service(oauth_data, supabase, user_id)
 
         # UPDATED: Watch both INBOX (received) and SENT (user's sent messages)
         watch_request = {
@@ -46,7 +48,7 @@ def start_gmail_watch(oauth_data: Dict[str, Any], topic_name: str = "projects/pi
         raise UserOauthError(error_detail_message=f"Failed to start Gmail watch: {str(e)}")
 
 
-def stop_gmail_watch(oauth_data: Dict[str, Any]) -> Dict[str, Any]:
+async def stop_gmail_watch(oauth_data: Dict[str, Any], supabase: AsyncClient, user_id: UUID) -> Dict[str, Any]:
     """
     Stop watching a Gmail account.
 
@@ -59,7 +61,7 @@ def stop_gmail_watch(oauth_data: Dict[str, Any]) -> Dict[str, Any]:
     print("stop_gmail_watch function runs...")
     try:
         # Create Gmail service
-        gmail_service = create_gmail_service(oauth_data)
+        gmail_service = await create_gmail_service(oauth_data, supabase, user_id)
 
         # Stop watching
         gmail_service.users().stop(userId="me").execute()
@@ -91,7 +93,7 @@ def get_gmail_watch_expiration_datetime(expiration_timestamp: str) -> datetime:
     return expiration_datetime
 
 
-def is_gmail_watch_expired(expiration_timestamp: str, buffer_hours: int = 1) -> bool:
+def is_gmail_watch_expired(expiration_timestamp: str, buffer_hours: int) -> bool:
     """
     Check if Gmail watch is expired or will expire soon.
 

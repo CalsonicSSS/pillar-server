@@ -64,7 +64,7 @@ async def create_user_oauth_credentials_by_channel_type(
 
 
 async def update_user_oauth_credentials_by_channel_type(
-    supabase: AsyncClient, user_id: UUID, channel_type: str, oauth_data: Dict[str, Any]
+    supabase: AsyncClient, user_id: UUID, channel_type: str, updated_oauth_data: Dict[str, Any]
 ) -> Dict[str, Any]:
     """
     Update existing OAuth credentials for a user and channel type.
@@ -81,7 +81,7 @@ async def update_user_oauth_credentials_by_channel_type(
         # Update existing credentials
         result = (
             await supabase.table("user_oauth_credentials")
-            .update({"oauth_data": oauth_data, "updated_at": datetime.now(timezone.utc).isoformat()})
+            .update({"oauth_data": updated_oauth_data, "updated_at": datetime.now(timezone.utc).isoformat()})
             .eq("id", existing_credentials["id"])
             .execute()
         )

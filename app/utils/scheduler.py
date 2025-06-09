@@ -33,6 +33,8 @@ def init_scheduler(supabase: AsyncClient) -> None:
         misfire_grace_time=3600,  # Allow up to 1 hour of misfire grace time
     )
 
+    # ------------------------------------------------------------------------------------
+
     # Weekly recap at 8:00am UTC every Monday
     scheduler.add_job(
         schedule_weekly_recaps_update,
@@ -43,7 +45,9 @@ def init_scheduler(supabase: AsyncClient) -> None:
         misfire_grace_time=3600,  # Allow up to 1 hour of misfire grace time
     )
 
-    # Gmail watch renewal check at 1:00am UTC every day
+    # ------------------------------------------------------------------------------------
+
+    # Gmail watch renewal check at 8:00am UTC every day
     scheduler.add_job(
         schedule_gmail_watch_renewals,
         CronTrigger(hour=8, minute=0),

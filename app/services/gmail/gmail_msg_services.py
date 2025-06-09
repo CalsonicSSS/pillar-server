@@ -1,6 +1,6 @@
 from typing import Dict, List, Any, Optional
 from uuid import UUID
-from datetime import datetime
+from datetime import datetime, timedelta
 import asyncio
 import traceback
 from supabase._async.client import AsyncClient
@@ -15,7 +15,7 @@ from app.models.oauth_process_models import GmailContactsInitialMessagesFetchReq
 from app.services.project_services import get_project_by_id
 
 
-# this function will be run whenever a new contact is added by user in the frontend after a project is created under a gmail channel is connected
+# this function will be run whenever a new contact is added by user in the frontend automatically for the first time
 async def fetch_and_store_gmail_messages_from_all_contacts(
     supabase: AsyncClient, gmail_message_fetch_info: GmailContactsInitialMessagesFetchRequest, user_id: UUID
 ) -> GmailContactsInitialMessagesFetchResponse:
@@ -73,22 +73,28 @@ async def fetch_and_store_gmail_messages_from_all_contacts(
                 print(f"Contact {contact_id} has no identifier, skipping")
                 continue
 
-            # Format dates for Gmail API (YYYY/MM/DD format)
+            # Format start and end dates for Gmail API message fetching for this particular contacts (YYYY/MM/DD format)
+            # it always starts from the "project_start_date" and next 2 days of the current date time
             start_date_str = project_start_date.strftime("%Y/%m/%d")
-            end_date_str = datetime.now()
+            # we do next 2 days range to account for the edge case of when user fetch this near the end of "today"
+            next_two_day = (datetime.now() + timedelta(days=2)).strftime("%Y/%m/%d")
 
             # Fetch all message ids for this specific contact within the date range, with start date must be the project start_date
             print(f"Fetching messages for contact: {contact_identifier}")
-            contact_msg_ids = fetch_gmail_msg_ids_for_contact_in_date_range(
+            contact_msg_ids = await fetch_gmail_msg_ids_for_contact_in_date_range(
                 oauth_data=user_gmail_oauth_data,
                 start_date=start_date_str,
-                end_date=end_date_str,
+                next_two_day=next_two_day,
                 contact_email=contact_identifier,
                 max_results=1000,
+                supabase=supabase,
+                user_id=user_id,
             )
 
             # batch get full messages for this contact
-            contact_full_msgs = batch_get_gmail_full_messages(user_oauth_data=user_gmail_oauth_data, message_ids=contact_msg_ids)
+            contact_full_msgs = await batch_get_gmail_full_messages(
+                user_oauth_data=user_gmail_oauth_data, message_ids=contact_msg_ids, supabase=supabase, user_id=user_id
+            )
 
             print(f"Found {len(contact_full_msgs)} full messages for contact: {contact_identifier}")
 
@@ -110,9 +116,9 @@ async def fetch_and_store_gmail_messages_from_all_contacts(
                         print(f"Message {contact_full_msg['id']} already exists, skipping")
                         continue
 
-                    # Process Gmail message
+                    # Only then, we will process this particular Gmail message by transforming and deal with attachments
                     processed_message = await transform_and_process_fetched_full_gmail_message_with_attachments(
-                        contact_full_msg, str(contact_id), user_gmail, user_gmail_oauth_data, supabase
+                        contact_full_msg, str(contact_id), user_gmail, user_gmail_oauth_data, supabase, user_id
                     )
 
                     # Store message in database

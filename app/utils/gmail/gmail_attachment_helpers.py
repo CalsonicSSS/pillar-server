@@ -2,7 +2,7 @@ import base64
 import traceback
 from typing import Dict, Any, Optional, List
 from app.utils.gmail.gmail_api_service import create_gmail_service
-from app.custom_error import UserOauthError
+from app.custom_error import UserOauthError, GeneralServerError
 import re
 from datetime import datetime
 from app.utils.storage.supabase_storage_helpers import (
@@ -12,8 +12,8 @@ from app.utils.storage.supabase_storage_helpers import (
     generate_safe_filename,
 )
 from uuid import UUID
-from supabase._async.client import AsyncClient
 from app.models.document_models import DocumentUploadRequest
+from supabase._async.client import AsyncClient
 
 
 # extracts ALL attachments metadata only from a single email (a single email can have possibly multiple files)
@@ -94,7 +94,13 @@ def extract_gmail_attachments_metadata(fetched_full_gmail_message: Dict[str, Any
 
 
 # to retrieve Gmail actual attachment body content based on the specific attachment_id within that specific email
-def retrieve_gmail_attachment_body(oauth_data: Dict[str, Any], message_id: str, attachment_id: str) -> Optional[bytes]:
+async def retrieve_gmail_attachment_body(
+    oauth_data: Dict[str, Any],
+    message_id: str,
+    attachment_id: str,
+    supabase: AsyncClient,
+    user_id: UUID,
+) -> Optional[bytes]:
     """
     Download attachment content from Gmail API.
 
@@ -110,7 +116,7 @@ def retrieve_gmail_attachment_body(oauth_data: Dict[str, Any], message_id: str, 
 
     try:
         # Create Gmail service
-        gmail_service = create_gmail_service(oauth_data)
+        gmail_service = await create_gmail_service(oauth_data, supabase, user_id)
 
         # Download attachment from Gmail
         attachment = gmail_service.users().messages().attachments().get(userId="me", messageId=message_id, id=attachment_id).execute()
@@ -128,10 +134,13 @@ def retrieve_gmail_attachment_body(oauth_data: Dict[str, Any], message_id: str, 
         print(f"Successfully downloaded attachment {attachment_id}, size: {len(file_bytes)} bytes")
         return file_bytes
 
+    except UserOauthError:
+        raise
+
     except Exception as e:
         print(f"Error downloading Gmail attachment {attachment_id}: {str(e)}")
         print(traceback.format_exc())
-        raise UserOauthError(error_detail_message=f"Failed to download attachment: {str(e)}")
+        raise GeneralServerError(error_detail_message=f"Failed to download attachment: {str(e)}")
 
 
 # -------------------------------------------------------------------------------------------------------------------------------------
@@ -142,8 +151,8 @@ def retrieve_gmail_attachment_body(oauth_data: Dict[str, Any], message_id: str, 
 # 3. upload files to Supabase storage
 # 4. create document record in Supabase database
 # only used in the transform_and_process_fetched_full_gmail_message_with_attachments function later
-async def process_gmail_attachments_with_storage(
-    fetched_full_gmail_message: Dict[str, Any], contact_id: str, user_oauth_data: Dict[str, Any], supabase: AsyncClient
+async def process_gmail_msg_attachments_with_storage(
+    fetched_full_gmail_message: Dict[str, Any], contact_id: str, user_oauth_data: Dict[str, Any], supabase: AsyncClient, user_id: UUID
 ) -> List[Dict[str, Any]]:
     """
     Process Gmail attachments: extract metadata, retrieve files attachment, store in Supabase.
@@ -151,7 +160,7 @@ async def process_gmail_attachments_with_storage(
     Returns:
         List of attachment metadata with document_ids populated
     """
-    print("process_gmail_attachments_with_storage runs...")
+    print("process_gmail_msg_attachments_with_storage runs...")
 
     # First, extract attachment(s) metadata for the single full email message
     attachments_metadata = extract_gmail_attachments_metadata(fetched_full_gmail_message)
@@ -170,7 +179,7 @@ async def process_gmail_attachments_with_storage(
             print(f"Processing attachment: {attachment_info['filename']}")
 
             # retrieve actual attachment body from this Gmail message for this speific attachment
-            file_bytes = retrieve_gmail_attachment_body(user_oauth_data, message_id, attachment_info["attachment_id"])
+            file_bytes = await retrieve_gmail_attachment_body(user_oauth_data, message_id, attachment_info["attachment_id"], supabase, user_id)
 
             if not file_bytes:
                 print(f"Failed to download {attachment_info['filename']}, skipping")

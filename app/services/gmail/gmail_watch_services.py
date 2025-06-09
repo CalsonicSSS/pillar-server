@@ -31,12 +31,12 @@ async def start_gmail_user_watch(supabase: AsyncClient, user_id: UUID) -> Dict[s
 
         # Check if watch is already active and not expired
         existing_watch_expiration = user_gmail_oauth_data.get("watch_info", {}).get("expiration")
-        if existing_watch_expiration and not is_gmail_watch_expired(existing_watch_expiration):
+        if existing_watch_expiration and not is_gmail_watch_expired(existing_watch_expiration, buffer_hours=25):
             print(f"Gmail watch already active for user {user_id}")
             return {"status": "already_active", "message": "Gmail watch is already active and not expired", "expiration": existing_watch_expiration}
 
         # If not, then Start Gmail watch
-        watch_result = start_gmail_watch(user_gmail_oauth_data)
+        watch_result = await start_gmail_watch(user_gmail_oauth_data, "projects/pillar-mvp/topics/pillar-gmail-notifications", supabase, user_id)
 
         # Update OAuth data with watch information
         user_gmail_oauth_data["watch_info"] = {
@@ -91,7 +91,7 @@ async def stop_gmail_user_watch(supabase: AsyncClient, user_id: UUID) -> Dict[st
         user_gmail_oauth_data = user_gmail_credentials["oauth_data"]
 
         # Stop Gmail watch
-        stop_gmail_watch(user_gmail_oauth_data)
+        await stop_gmail_watch(user_gmail_oauth_data, supabase, user_id)
 
         # Remove watch information from OAuth data
         if "watch_info" in user_gmail_oauth_data:
@@ -139,17 +139,17 @@ async def check_and_renew_gmail_user_watch(supabase: AsyncClient, user_id: UUID)
             return await start_gmail_user_watch(supabase, user_id)
 
         # Check if watch is expired or expiring soon
-        if is_gmail_watch_expired(user_gmail_watch_info["expiration"], buffer_hours=24):  # Renew 24 hours before expiration
+        if is_gmail_watch_expired(user_gmail_watch_info["expiration"], buffer_hours=25):  # Renew 25 hours before expiration for daily safety
             print(f"Gmail watch expiring soon for user {user_id}, renewing...")
 
             # Stop current watch first
             try:
-                stop_gmail_watch(user_gmail_oauth_data)
+                await stop_gmail_watch(user_gmail_oauth_data, supabase, user_id)
             except Exception as e:
                 print(f"Error stopping watch (continuing anyway): {str(e)}")
 
             # Start new watch
-            watch_result = start_gmail_watch(user_gmail_oauth_data)
+            watch_result = await start_gmail_watch(user_gmail_oauth_data, "projects/pillar-mvp/topics/pillar-gmail-notifications", supabase, user_id)
 
             # Update OAuth data with new watch information
             user_gmail_oauth_data["watch_info"] = {

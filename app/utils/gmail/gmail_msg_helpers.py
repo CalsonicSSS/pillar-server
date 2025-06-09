@@ -5,12 +5,13 @@ import traceback
 from app.custom_error import UserOauthError, GeneralServerError
 from app.utils.gmail.gmail_api_service import create_gmail_service
 from supabase._async.client import AsyncClient
-from app.utils.gmail.gmail_attachment_helpers import process_gmail_attachments_with_storage
+from app.utils.gmail.gmail_attachment_helpers import process_gmail_msg_attachments_with_storage
+from uuid import UUID
 
 
 # this function is to leverage gmail message list API to essentially get the list of message ids between the user and target contact
-def fetch_gmail_msg_ids_for_contact_in_date_range(
-    oauth_data: Dict[str, Any], start_date: str, end_date: datetime, contact_email: str, max_results: int = 1000
+async def fetch_gmail_msg_ids_for_contact_in_date_range(
+    oauth_data: Dict[str, Any], start_date: str, next_two_day: str, contact_email: str, max_results: int, supabase: AsyncClient, user_id: UUID
 ) -> List[Dict[str, Any]]:
     """
     Fetch Gmail messages for a specific contact within a date range.
@@ -23,11 +24,7 @@ def fetch_gmail_msg_ids_for_contact_in_date_range(
     """
     print("fetch_gmail_msg_ids_for_contact_in_date_range runs...")
     try:
-        gmail_service = create_gmail_service(oauth_data)
-
-        # we do next 2 days range to account for the edge case of when user fetch this near the end of "today"
-        next_two_day = (end_date + timedelta(days=2)).strftime("%Y/%m/%d")
-        print(f"Start date: {start_date}, End date: {next_two_day}")
+        gmail_service = await create_gmail_service(oauth_data, supabase, user_id)
 
         # Build search query - CAPTURES BOTH SENT AND RECEIVED
         # from:{contact_email} = Messages FROM contact TO user (RECEIVED)
@@ -77,7 +74,9 @@ def fetch_gmail_msg_ids_for_contact_in_date_range(
 
 # this is the functions used in both initial gmail message fetch and pub/sub message fetch through batch for a full message.
 # format is set to format="full", so it will return the full message object with attachments
-def batch_get_gmail_full_messages(user_oauth_data: Dict[str, Any], message_ids: List[str]) -> List[Dict[str, Any]]:
+async def batch_get_gmail_full_messages(
+    user_oauth_data: Dict[str, Any], message_ids: List[str], supabase: AsyncClient, user_id: UUID
+) -> List[Dict[str, Any]]:
     """
     Fetch full Gmail messages in batches using the Gmail API.
 
@@ -94,7 +93,7 @@ def batch_get_gmail_full_messages(user_oauth_data: Dict[str, Any], message_ids: 
             return []
 
         # Create Gmail service
-        gmail_service = create_gmail_service(user_oauth_data)
+        gmail_service = await create_gmail_service(user_oauth_data, supabase, user_id)
 
         full_messages = []
         batch_size = 50  # Google recommends 50-100 requests per batch
@@ -279,6 +278,7 @@ async def transform_and_process_fetched_full_gmail_message_with_attachments(
     user_email: str,
     user_oauth_data: Dict[str, Any],  # NEW: Need OAuth data for attachment download
     supabase: AsyncClient,  # NEW: Need Supabase client for storage
+    user_id: UUID,
 ) -> Dict[str, Any]:
     """
     Process a Gmail message into our application's format.
@@ -367,7 +367,9 @@ async def transform_and_process_fetched_full_gmail_message_with_attachments(
 
     # Extract attachments metadata and process download for storage for this specific message
     try:
-        attachment_metadata = await process_gmail_attachments_with_storage(fetched_full_gmail_message, contact_id, user_oauth_data, supabase)
+        attachment_metadata = await process_gmail_msg_attachments_with_storage(
+            fetched_full_gmail_message, contact_id, user_oauth_data, supabase, user_id
+        )
         supabase_message_data["attachments"] = attachment_metadata
 
     except Exception as e:

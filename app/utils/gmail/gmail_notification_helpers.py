@@ -2,10 +2,14 @@ from typing import Dict, Any, List, Set
 import traceback
 from app.custom_error import UserOauthError
 from app.utils.gmail.gmail_api_service import create_gmail_service
+from supabase._async.client import AsyncClient
+from uuid import UUID
 
 
 # this is to get the delta of msg ids from the specified current hist_id as starting point to the time point when history list api is called
-def get_gmail_history_delta_msg_ids(user_oauth_data: Dict[str, Any], current_user_gmail_history_id: str, max_results: int = 1000) -> Dict[str, Any]:
+async def get_gmail_history_delta_msg_ids(
+    user_oauth_data: Dict[str, Any], current_user_gmail_history_id: str, max_results: int, supabase: AsyncClient, user_id: UUID
+) -> Dict[str, Any]:
     """
     Get history of Gmail changes since the provided history ID.
 
@@ -20,7 +24,7 @@ def get_gmail_history_delta_msg_ids(user_oauth_data: Dict[str, Any], current_use
     print(f"get_gmail_history_delta_msg_ids runs (for starting history_id: {current_user_gmail_history_id})")
     try:
         # Create Gmail service
-        gmail_service = create_gmail_service(user_oauth_data)
+        gmail_service = await create_gmail_service(user_oauth_data, supabase, user_id)
 
         # Request parameters
         history_params = {

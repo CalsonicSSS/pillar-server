@@ -1,38 +1,17 @@
-"create_gmail_service()" does automatic refresh access token with "credentials.refresh(Request()):"
+User token management flow
 
-- Checks if access_token is expired
-- If expired, uses refresh_token to get a new access_token
-- Updates the credentials object with the new token
-- DOESN'T save the new access_token back to the database -> Next call will still see the old expired token in DB and refresh again
-- But doesn't update the database with new tokens
+- Access Token Auto-Save only under "create_gmail_service" when refresh occurs
 
+- Frontend-Driven Refresh Token Management
 
-------------------------------------------------------------------------------------------------------------------------------
+    - Users know they need to re-authorize (better than silent failure) as it directly shows the notifcation on client side
 
+    - Same logic regardless of refresh token lifetime
 
-"refresh_token_expires_in": 604799  // ← 7 days (common in dev/testing)
+    - Edge Cases Handled Well (if user doesn't visit for weeks)
 
-- Dev/Test Mode: Google often gives shorter refresh token lifetimes (7 days)
-- Production: Can be much longer (weeks/months) depending on your OAuth app verification status
-
-- When refresh_token also expires -> then credentials.refresh(Request()) will FAIL
-
-------------------------------------------------------------------------------------------------------------------------------
-
-When both tokens expired 
-
-# When both access_token AND refresh_token are expired:
-credentials.refresh(Request())  # ← This will FAIL
-# Raises an exception → UserOauthError in your code
-# All subsequent Gmail API calls will fail
-
-------------------------------------------------------------------------------------------------------------------------------
-
-Manual Re-OAuth Route
-
-- Complete replacement with brand new access_token, refresh_token, and new expiry times.
-- last resort only: Forcing users through full OAuth consent again is bad UX.
--  Manual re-OAuth works but should be last resort
+        - Tokens expire -> Next visit shows re-auth needed → User re-auths → new access / refresh token + watch -> refetch initial gmail message (since last sync)
+        (this will catch up and store only the missed message since project started date till now + watch onwards resume)
 
 ###############################################################################################################################
 

@@ -86,7 +86,9 @@ async def process_gmail_pub_sub_notifications(request: Request, supabase: AsyncC
             # Get history changes
             # all msg id fetched from "get_gmail_history_delta_msg_ids" can potential from all possible contacts from user gmail channel
             # so later we will need to filter out which messages are relevant to the user based on the only the chosen existing contacts
-            history_delta_result = get_gmail_history_delta_msg_ids(user_gmail_credentials["oauth_data"], current_user_gmail_history_id)
+            history_delta_result = await get_gmail_history_delta_msg_ids(
+                user_gmail_credentials["oauth_data"], current_user_gmail_history_id, 1000, supabase, UUID(user_id)
+            )
             new_history_id = history_delta_result["history_id"]
             delta_message_ids = history_delta_result["message_ids"]
 
@@ -158,7 +160,7 @@ async def process_gmail_pub_sub_notifications(request: Request, supabase: AsyncC
 
             # Batch get all the full messages
             # need to use full message to compare if any of these messaage are from target contact(s) within all gmail channels under active project for this user
-            full_messages = batch_get_gmail_full_messages(user_gmail_credentials["oauth_data"], delta_message_ids)
+            full_messages = await batch_get_gmail_full_messages(user_gmail_credentials["oauth_data"], delta_message_ids, supabase, UUID(user_id))
 
             if not full_messages:
                 print(f"No full messages retrieved for user {user_id}")
@@ -245,7 +247,7 @@ async def process_gmail_pub_sub_notifications(request: Request, supabase: AsyncC
 
                         # Transform and store the message with attachments
                         transformed_message = await transform_and_process_fetched_full_gmail_message_with_attachments(
-                            full_message, contact_id, user_email_address, user_gmail_credentials["oauth_data"], supabase
+                            full_message, contact_id, user_email_address, user_gmail_credentials["oauth_data"], supabase, UUID(user_id)
                         )
 
                         # Insert the message
