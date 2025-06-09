@@ -16,6 +16,7 @@ from app.routes.gmail.gmail_watch_routes import gmail_watch_router
 from app.routes.message_routes import general_message_router
 from app.routes.gmail.gmail_notification_routes import gmail_pub_sub_notification_router
 from app.routes.document_routes import document_router
+from app.routes.todo_routes import todo_router
 
 
 @asynccontextmanager
@@ -70,6 +71,7 @@ app.include_router(gmail_watch_router, prefix=app_config_settings.API_V1_PREFIX)
 app.include_router(general_message_router, prefix=app_config_settings.API_V1_PREFIX)
 app.include_router(gmail_pub_sub_notification_router, prefix=app_config_settings.API_V1_PREFIX)
 app.include_router(document_router, prefix=app_config_settings.API_V1_PREFIX)
+app.include_router(todo_router, prefix=app_config_settings.API_V1_PREFIX)
 
 
 @app.get("/")

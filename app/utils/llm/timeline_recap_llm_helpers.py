@@ -23,7 +23,7 @@ def create_summarization_user_prompt(
     time_scope = "day" if summary_type == "daily" else "week"
     user_prompt = f"""Please summarize all the communication messages above from {date_range_description} date range into a concise summary within this project for me.
 
-Additional important context:
+Additional important context for you to consider:
 - {user_own_identities_context}
 - {project_context_content}
     
@@ -50,7 +50,7 @@ def format_all_project_messages(messages: List[Dict[str, Any]]) -> List[Dict[str
         return "There were no messages in this time period."
 
     all_message_contents = ""
-    all_message_contents += "Here are all the communication messages to summarize:\n\n"
+    all_message_contents += "Here are all communication messages to summarize (each message is separated by lines of '-'):\n\n"
 
     # Format each message
     for msg in messages:
@@ -147,7 +147,7 @@ async def summarize_timeline_recap_element(
             system_prompt=system_prompt,
             messages=formatted_messages,
             temperature=0.3,  # Lower temperature for more consistent summaries
-            max_tokens=1800,  # Limit response to avoid verbosity
+            max_tokens=1000,  # Limit response to avoid verbosity
         )
 
         # Extract the summary text
