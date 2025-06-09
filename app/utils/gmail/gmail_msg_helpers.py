@@ -32,6 +32,7 @@ async def fetch_gmail_msg_ids_for_contact_in_date_range(
         query = f"(from:{contact_email} OR to:{contact_email}) after:{start_date} before:{next_two_day}"
         print(f"Query (both directions): {query}")
 
+        # this api by default Searches across the user's entire mailbox, but Excludes messages in Spam and Trash (very important)
         initial_msg_id_list_response = gmail_service.users().messages().list(userId="me", q=query, maxResults=min(max_results, 100)).execute()
         print(f"First msg ids fetch response: {initial_msg_id_list_response}")
 

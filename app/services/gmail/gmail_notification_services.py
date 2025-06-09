@@ -5,7 +5,7 @@ import base64
 from uuid import UUID
 from fastapi import Request
 from supabase._async.client import AsyncClient
-from app.utils.gmail.gmail_notification_helpers import get_gmail_history_delta_msg_ids
+from app.utils.gmail.gmail_notification_helpers import get_gmail_history_delta_msg_ids, is_message_in_final_state
 from app.utils.gmail.gmail_msg_helpers import transform_and_process_fetched_full_gmail_message_with_attachments, batch_get_gmail_full_messages
 from app.services.user_oauth_credential_services import update_user_oauth_credentials_by_channel_type
 
@@ -175,6 +175,14 @@ async def process_gmail_pub_sub_notifications(request: Request, supabase: AsyncC
             # we need to analyze each full message to see if any of the contacts are involved
             # if then, we will process, transform, and save the message to the database with attachments
             for full_message in full_messages:
+                # Check if message is in truly final state
+                message_labels = full_message.get("labelIds", [])
+
+                # Filter out messages that aren't in final state
+                if not is_message_in_final_state(message_labels):
+                    print(f"Skipping message {full_message['id']} - not in final state")
+                    continue
+
                 # Extract email addresses from the message
                 headers = {}
                 for header in full_message.get("payload", {}).get("headers", []):

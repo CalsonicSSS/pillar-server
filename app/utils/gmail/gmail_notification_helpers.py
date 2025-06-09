@@ -29,7 +29,7 @@ async def get_gmail_history_delta_msg_ids(
         # Request parameters
         history_params = {
             "startHistoryId": current_user_gmail_history_id,
-            # "historyTypes": ["messageAdded"],  # messageAdded alone Captures Both Directions INBOX / SENT (matching watch api config)
+            "historyTypes": ["messageAdded"],  # messageAdded alone Captures Both Directions INBOX / SENT (matching watch api config)
         }
 
         # Get history: we call this to retrieve the list of changes (history records) that occurred since that startHistoryId.
@@ -70,6 +70,9 @@ async def get_gmail_history_delta_msg_ids(
         raise UserOauthError(error_detail_message=f"Failed to get Gmail history: {str(e)}")
 
 
+# -------------------------------------------------------------------------------------------------------------------
+
+
 def extract_message_ids_from_history(history_response: Dict[str, Any]) -> Set[str]:
     """
     Extract unique message IDs from a Gmail history response.
@@ -100,3 +103,27 @@ def extract_message_ids_from_history(history_response: Dict[str, Any]) -> Set[st
 
     # the .add method of a set will not add duplicates, so the message_ids set will only contain unique message IDs
     return message_ids
+
+
+# -------------------------------------------------------------------------------------------------------------------
+
+
+def is_message_in_final_state(message_labels: List[str]) -> bool:
+    """
+    Check if a Gmail message is in its final state (truly sent or truly received).
+
+    Returns True only for:
+    - Messages in INBOX (truly received)
+    - Messages in SENT but NOT in DRAFT (truly sent)
+    """
+
+    # For received messages: must have INBOX
+    if "INBOX" in message_labels:
+        return True
+
+    # For sent messages: must have SENT but NOT DRAFT
+    if "SENT" in message_labels and "DRAFT" not in message_labels:
+        return True
+
+    # All other states (including drafts with SENT label) are filtered out
+    return False
