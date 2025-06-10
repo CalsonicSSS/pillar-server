@@ -7,8 +7,6 @@ from app.custom_error import DataBaseError, GeneralServerError, UserAuthError
 from app.models.timeline_recap_models import (
     RecapSummaryResponse,
     TimelineRecapResponse,
-    TimelineRecapDataStructureCreateResponse,
-    TimelineRecapSummaryGenResponse,
 )
 from app.utils.llm.timeline_recap_llm_helpers import generate_weekly_summary, generate_daily_summary
 from app.utils.generals import logger
@@ -39,7 +37,7 @@ async def get_project_timeline_recap(supabase: AsyncClient, project_id: UUID, us
             .execute()
         )
 
-        # Get past 4 weeks activity (weekly summaries)
+        # Get past 2 weeks activity (weekly summaries)
         past_weeks_result = (
             await supabase.table("communication_timeline_recap")
             .select("*")
@@ -52,9 +50,9 @@ async def get_project_timeline_recap(supabase: AsyncClient, project_id: UUID, us
 
         # Convert to response objects
         recent_activity = [RecapSummaryResponse(**summary) for summary in recent_activity_result.data]
-        past_4_weeks = [RecapSummaryResponse(**summary) for summary in past_weeks_result.data]
+        past_2_weeks = [RecapSummaryResponse(**summary) for summary in past_weeks_result.data]
 
-        return TimelineRecapResponse(recent_activity=recent_activity, past_4_weeks=past_4_weeks)
+        return TimelineRecapResponse(recent_activity=recent_activity, past_2_weeks=past_2_weeks)
 
     except UserAuthError:
         raise
@@ -70,9 +68,7 @@ async def get_project_timeline_recap(supabase: AsyncClient, project_id: UUID, us
 # This function is to create 5 definite entries (3 daily + 2 weekly) as placeholder data structure in the database
 # this function should be fully AUTOMATICALLY called when a new project is created by user without user intervention
 # this sets up the initial data structure for the timeline recap for later "first-time" initialization and sheduled daily / weekly generation
-async def initialize_project_timeline_recap_data_structure(
-    supabase: AsyncClient, project_id: UUID, user_id: UUID
-) -> TimelineRecapDataStructureCreateResponse:
+async def initialize_project_timeline_recap_data_structure(supabase: AsyncClient, project_id: UUID, user_id: UUID) -> TimelineRecapResponse:
     """
     Generate initial timeline recap data_structure for a project with 8:00am UTC as the daily boundary for the very first time only.
     """
@@ -88,15 +84,32 @@ async def initialize_project_timeline_recap_data_structure(
         print("Project start date:", project_start_date)
 
         # Check if recap already exists
-        existing_project_timeline_recap = (
-            await supabase.table("communication_timeline_recap").select("id").eq("project_id", str(project_id)).limit(1).execute()
+        # Get recent activity (daily summaries for past 3 days)
+        recent_activity_result = (
+            await supabase.table("communication_timeline_recap")
+            .select("*")
+            .eq("project_id", str(project_id))
+            .eq("summary_type", "daily")
+            .order("start_date", desc=True)
+            .limit(3)
+            .execute()
         )
 
-        if existing_project_timeline_recap.data:
-            return TimelineRecapDataStructureCreateResponse(
-                status="error",
-                status_message="Timeline recap data structure already exists for this project",
-            )
+        # Get past 2 weeks activity (weekly summaries)
+        past_weeks_result = (
+            await supabase.table("communication_timeline_recap")
+            .select("*")
+            .eq("project_id", str(project_id))
+            .eq("summary_type", "weekly")
+            .order("start_date", desc=True)
+            .limit(2)
+            .execute()
+        )
+
+        if recent_activity_result.data and past_weeks_result.data:
+            recent_activity = [RecapSummaryResponse(**summary) for summary in recent_activity_result.data]
+            past_2_weeks = [RecapSummaryResponse(**summary) for summary in past_weeks_result.data]
+            return TimelineRecapResponse(recent_activity=recent_activity, past_2_weeks=past_2_weeks)
 
         now_utc = datetime.now(timezone.utc)
         today_8am_utc = now_utc.replace(hour=8, minute=0, second=0, microsecond=0)
@@ -179,12 +192,11 @@ async def initialize_project_timeline_recap_data_structure(
         result = await supabase.table("communication_timeline_recap").insert(all_summaries).execute()
 
         if not result.data:
-            raise DataBaseError(error_detail_message="Failed to create timeline recap")
+            raise DataBaseError(error_detail_message="Failed to create timeline recap elements")
 
-        return TimelineRecapDataStructureCreateResponse(
-            status="success",
-            status_message="Timeline recap element structure initialized successfully",
-        )
+        recent_activity = [RecapSummaryResponse(**summary) for summary in [item for item in result.data if item.get("summary_type") == "daily"]]
+        past_2_weeks = [RecapSummaryResponse(**summary) for summary in [item for item in result.data if item.get("summary_type") == "weekly"]]
+        return TimelineRecapResponse(recent_activity=recent_activity, past_2_weeks=past_2_weeks)
 
     except (DataBaseError, UserAuthError):
         raise
@@ -199,9 +211,7 @@ async def initialize_project_timeline_recap_data_structure(
 
 # this is the function that actually does the LLM summarization for EACH OF ALL fetched recap elements WITHIN A SPECIFIC PROJECT for only the "To be summarized" ones
 # Only after initialization, can "generate_to_be_summarized_timeline_recap_summaries" be meaningfully called afterwards (This sequence is critical)
-async def generate_to_be_summarized_timeline_recap_summaries(
-    supabase: AsyncClient, project_id: UUID, user_id: UUID
-) -> TimelineRecapSummaryGenResponse:
+async def generate_to_be_summarized_timeline_recap_summaries(supabase: AsyncClient, project_id: UUID, user_id: UUID) -> TimelineRecapResponse:
     print("generate_to_be_summarized_timeline_recap_summaries service runs")
     try:
         # First, verify the project belongs to the user
@@ -235,10 +245,7 @@ async def generate_to_be_summarized_timeline_recap_summaries(
             .execute()
         )
         if not project_all_timeline_recap_elements.data:
-            return TimelineRecapSummaryGenResponse(
-                status="error",
-                status_message="No timeline recap elements to summarize found for this project",
-            )
+            return await get_project_timeline_recap(supabase, project_id, user_id)
 
         # Process each timeline recap element summary content
         for recap_element in project_all_timeline_recap_elements.data:
@@ -292,10 +299,7 @@ async def generate_to_be_summarized_timeline_recap_summaries(
 
             generated_count += 1
 
-        return TimelineRecapSummaryGenResponse(
-            status="success",
-            status_message=f"Successfully generated {generated_count} summaries for project {project_id}",
-        )
+        return await get_project_timeline_recap(supabase, project_id, user_id)
 
     except UserAuthError:
         raise

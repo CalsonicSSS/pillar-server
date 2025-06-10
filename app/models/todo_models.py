@@ -32,12 +32,3 @@ class TodoListResponse(BaseModel):
 
 class TodoListUpdateRequest(BaseModel):
     items: List[Dict[str, Any]]  # Allow flexible updates to todo items
-
-
-# -----------------------------------------------------------------------------------------------
-
-
-# Response models
-class TodoGenerateResponse(BaseModel):
-    status: str
-    status_message: str

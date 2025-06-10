@@ -18,6 +18,9 @@ async def get_user_projects(supabase: AsyncClient, user_id: UUID, status: Option
 
     try:
         result = await query.execute()
+        if not result.data:
+            raise DataBaseError(error_detail_message="Failed to fetch your projects")
+
         return [ProjectResponse(**project) for project in result.data]
 
     except Exception as e:
@@ -46,7 +49,7 @@ async def create_new_project(supabase: AsyncClient, new_project_payload: Project
         result = await supabase.table("projects").insert(new_project_data).execute()
 
         # the .data is the list of records (dict) returned from the database
-        if len(result.data) == 0:
+        if not result.data:
             raise DataBaseError(error_detail_message="Failed to create project")
 
         return ProjectResponse(**result.data[0])

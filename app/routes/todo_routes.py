@@ -5,12 +5,12 @@ from supabase._async.client import AsyncClient
 from app.utils.app_states import get_async_supabase_client
 from app.utils.user_auth import verify_jwt_and_get_user_id
 from app.services.todo_services import generate_project_todo_list, get_project_todo_list, update_project_todo_list
-from app.models.todo_models import TodoGenerateRequest, TodoListResponse, TodoGenerateResponse, TodoListUpdateRequest
+from app.models.todo_models import TodoGenerateRequest, TodoListResponse, TodoListUpdateRequest
 
 todo_router = APIRouter(prefix="/todo-lists", tags=["todo-lists"])
 
 
-@todo_router.post("/project/{project_id}", response_model=TodoGenerateResponse)
+@todo_router.post("/project/{project_id}", response_model=TodoListResponse)
 async def generate_project_todo_list_handler(
     project_id: UUID = Path(...),
     todo_request: TodoGenerateRequest = Body(...),
@@ -27,7 +27,10 @@ async def generate_project_todo_list_handler(
 # --------------------------------------------------------------------------------------------------------------------------------
 
 
-@todo_router.get("/project/{project_id}")
+# FastAPI already allows the response to be None by default — as long as the route actually returns None.
+# in return None, then response body will simply have "null" as json (not wrapped in an object, array, or anything else. It's just the standalone)
+# Optional[X] is equivalent to Union[X, None].
+@todo_router.get("/project/{project_id}", response_model=Optional[TodoListResponse])
 async def get_project_todo_list_handler(
     project_id: UUID = Path(...),
     supabase: AsyncClient = Depends(get_async_supabase_client),

@@ -4,7 +4,7 @@ from datetime import datetime
 from uuid import UUID
 
 
-class GmailOAuthFlowResponse(BaseModel):
+class GmailOAuthResponse(BaseModel):
     oauth_url: str
     status_message: str
     requires_oauth: bool

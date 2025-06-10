@@ -4,7 +4,7 @@ from app.services.timeline_recap_services import (
     initialize_project_timeline_recap_data_structure,
     generate_to_be_summarized_timeline_recap_summaries,
 )
-from app.models.timeline_recap_models import TimelineRecapResponse, TimelineRecapDataStructureCreateResponse, TimelineRecapSummaryGenResponse
+from app.models.timeline_recap_models import TimelineRecapResponse
 from app.utils.app_states import get_async_supabase_client
 from typing import Optional
 from uuid import UUID
@@ -24,7 +24,7 @@ async def get_project_timeline_recap_handler(
     return await get_project_timeline_recap(supabase, project_id, user_id)
 
 
-@timeline_recap_router.post("/project/{project_id}/initialize", response_model=TimelineRecapDataStructureCreateResponse)
+@timeline_recap_router.post("/project/{project_id}/initialize", response_model=TimelineRecapResponse)
 async def initialize_project_timeline_recap_data_structure_handler(
     project_id: UUID = Path(...),
     supabase: AsyncClient = Depends(get_async_supabase_client),
@@ -34,7 +34,7 @@ async def initialize_project_timeline_recap_data_structure_handler(
     return await initialize_project_timeline_recap_data_structure(supabase, project_id, user_id)
 
 
-@timeline_recap_router.post("/project/{project_id}/generate-summaries", response_model=TimelineRecapSummaryGenResponse)
+@timeline_recap_router.post("/project/{project_id}/generate-summaries", response_model=TimelineRecapResponse)
 async def generate_to_be_summarized_timeline_recap_summaries_handler(
     project_id: UUID = Path(...),
     supabase: AsyncClient = Depends(get_async_supabase_client),

@@ -4,14 +4,12 @@ from datetime import datetime, timezone
 import traceback
 from supabase._async.client import AsyncClient
 from app.custom_error import DataBaseError, GeneralServerError, UserAuthError
-from app.models.todo_models import TodoGenerateRequest, TodoListResponse, TodoGenerateResponse, TodoListUpdateRequest, TodoItem
+from app.models.todo_models import TodoGenerateRequest, TodoListResponse, TodoListUpdateRequest, TodoItem
 from app.utils.llm.todo_llm_helpers import generate_todo_summary_and_items
 from app.services.user_oauth_credential_services import get_user_oauth_credentials_by_channel_type
 
 
-async def generate_project_todo_list(
-    supabase: AsyncClient, project_id: UUID, user_id: UUID, todo_request: TodoGenerateRequest
-) -> TodoGenerateResponse:
+async def generate_project_todo_list(supabase: AsyncClient, project_id: UUID, user_id: UUID, todo_request: TodoGenerateRequest) -> TodoListResponse:
     """
     Generate a new todo list for a project based on messages in the specified date range.
     Replaces any existing todo list for this project.
@@ -105,7 +103,7 @@ async def generate_project_todo_list(
         if not result.data:
             raise DataBaseError(error_detail_message="Failed to save todo list")
 
-        return TodoGenerateResponse(status="success", status_message=f"Successfully generated todo list with {len(formatted_todo_items)} items")
+        return TodoListResponse(**result.data[0])
 
     except (DataBaseError, UserAuthError):
         raise
@@ -179,7 +177,7 @@ async def update_project_todo_list(supabase: AsyncClient, project_id: UUID, user
             raise DataBaseError(error_detail_message="Failed to update todo list")
 
         # Return updated todo list
-        return await get_project_todo_list(supabase, project_id, user_id)
+        return TodoListResponse(**result.data[0])
 
     except (DataBaseError, UserAuthError):
         raise
