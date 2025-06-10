@@ -18,12 +18,12 @@ class GmailOAuthCallbackCompletionResponse(BaseModel):
 # ----------------------------------------------------------------------------
 
 
-class GmailContactsInitialMessagesFetchRequest(BaseModel):
+class GmailContactsMessagesFetchRequest(BaseModel):
     project_id: UUID
     channel_id: UUID
     contact_ids: list[UUID]
 
 
-class GmailContactsInitialMessagesFetchResponse(BaseModel):
+class GmailContactsMessagesFetchResponse(BaseModel):
     status: str
     status_message: str

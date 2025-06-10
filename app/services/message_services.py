@@ -38,6 +38,9 @@ async def get_messages_with_filters(supabase: AsyncClient, user_id: UUID, filter
         raise GeneralServerError(error_detail_message="Failed to retrieve messages")
 
 
+# --------------------------------------------------------------------------------------------------------------------------------
+
+
 async def get_message_by_id(supabase: AsyncClient, message_id: UUID, user_id: UUID) -> MessageResponse:
     """
     Get a specific message by ID with user verification.
@@ -60,6 +63,9 @@ async def get_message_by_id(supabase: AsyncClient, message_id: UUID, user_id: UU
     except Exception as e:
         print(traceback.format_exc())
         raise GeneralServerError(error_detail_message="Failed to retrieve that message")
+
+
+# --------------------------------------------------------------------------------------------------------------------------------
 
 
 async def mark_message_as_read(supabase: AsyncClient, message_id: UUID, user_id: UUID, message_update_payload: MessageUpdate) -> MessageResponse:

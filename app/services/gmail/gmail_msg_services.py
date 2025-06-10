@@ -11,14 +11,14 @@ from app.utils.gmail.gmail_msg_helpers import (
     batch_get_gmail_full_messages,
 )
 from app.services.user_oauth_credential_services import get_user_oauth_credentials_by_channel_type
-from app.models.oauth_process_models import GmailContactsInitialMessagesFetchRequest, GmailContactsInitialMessagesFetchResponse
+from app.models.oauth_process_models import GmailContactsMessagesFetchRequest, GmailContactsMessagesFetchResponse
 from app.services.project_services import get_project_by_id
 
 
 # this function will be run whenever a new contact is added by user in the frontend automatically for the first time
 async def fetch_and_store_gmail_messages_from_all_contacts(
-    supabase: AsyncClient, gmail_message_fetch_info: GmailContactsInitialMessagesFetchRequest, user_id: UUID
-) -> GmailContactsInitialMessagesFetchResponse:
+    supabase: AsyncClient, gmail_message_fetch_info: GmailContactsMessagesFetchRequest, user_id: UUID
+) -> GmailContactsMessagesFetchResponse:
     """
     Fetch and store initial messages for a channel's contacts from start_date to now.
     """
@@ -138,7 +138,7 @@ async def fetch_and_store_gmail_messages_from_all_contacts(
             if contact_id != contact_ids[-1]:
                 await asyncio.sleep(0.3)
 
-        return GmailContactsInitialMessagesFetchResponse(
+        return GmailContactsMessagesFetchResponse(
             status="success",
             status_message=f"Successfully fetched and stored initial messages for contacts: {contact_identifier}",
         )

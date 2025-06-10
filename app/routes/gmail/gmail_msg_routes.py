@@ -8,14 +8,14 @@ from app.services.gmail.gmail_msg_services import (
 from app.utils.app_states import get_async_supabase_client
 from supabase._async.client import AsyncClient
 from app.utils.user_auth import verify_jwt_and_get_user_id
-from app.models.oauth_process_models import GmailContactsInitialMessagesFetchRequest, GmailContactsInitialMessagesFetchResponse
+from app.models.oauth_process_models import GmailContactsMessagesFetchRequest, GmailContactsMessagesFetchResponse
 
 gmail_message_router = APIRouter(prefix="/gmail/message", tags=["messages"])
 
 
-@gmail_message_router.post("/fetch", response_model=GmailContactsInitialMessagesFetchResponse)
+@gmail_message_router.post("/fetch", response_model=GmailContactsMessagesFetchResponse)
 async def fetch_and_store_gmail_messages_from_all_contacts_handler(
-    gmail_message_fetch_info: GmailContactsInitialMessagesFetchRequest = Body(...),
+    gmail_message_fetch_info: GmailContactsMessagesFetchRequest = Body(...),
     supabase: AsyncClient = Depends(get_async_supabase_client),
     user_id: UUID = Depends(verify_jwt_and_get_user_id),
 ):
