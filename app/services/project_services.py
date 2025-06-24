@@ -18,8 +18,6 @@ async def get_user_projects(supabase: AsyncClient, user_id: UUID, status: Option
 
     try:
         result = await query.execute()
-        if not result.data:
-            raise DataBaseError(error_detail_message="Failed to fetch your projects")
 
         return [ProjectResponse(**project) for project in result.data]
 
