@@ -57,18 +57,14 @@ async def verify_jwt_and_get_user_id(
         # Get the signing key
         signing_key = jwks_client.get_signing_key_from_jwt(jwt_token)
 
-        # When using Clerk, will need to verify the JWT using Clerk's signing_key. Which is actually the key you get from the JWKS endpoint through JWKS URL
-        # what jwt.decode does:
-        # 1: unpacks the three parts of JWT: header, payload, signature.
-        # 2. It verifies if the signature (Recomputes the signature from the header + payload part, and compares it with the signature part).
-        # 3. If matches, it gives you the "payload" portion back as a Python dictionary.
-        # 4. If not matches, it raises an exception.
+        # Add leeway to handle clock synchronization issues
         jwt_payload = jwt.decode(
             jwt_token,
             signing_key.key,
             algorithms=["RS256"],
             audience=app_config_settings.CLERK_JWT_AUDIENCE,
             issuer=f"https://{app_config_settings.CLERK_DOMAIN}",
+            leeway=30,  # Add 30 seconds of leeway for timing issues
         )
 
         # Get user ID from the token - try both "sub" and "user_id"
