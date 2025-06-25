@@ -37,3 +37,13 @@ class ProjectResponse(ProjectBase):
     updated_at: datetime
     user_id: UUID
     avatar_letter: str
+
+
+# -------------------------------------------
+
+
+class ProjectMetricsResponse(BaseModel):
+    connected_channels_count: int
+    documents_count: int
+    contacts_count: int
+    start_date: str

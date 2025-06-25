@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, Body
-from app.models.project_models import ProjectCreate, ProjectResponse, ProjectUpdate
+from app.models.project_models import ProjectCreate, ProjectResponse, ProjectUpdate, ProjectMetricsResponse
 from app.services.project_services import create_new_project, get_user_projects, get_project_by_id, update_project
 from app.utils.app_states import get_async_supabase_client
 from typing import List, Optional
@@ -7,6 +7,7 @@ from uuid import UUID
 from supabase._async.client import AsyncClient
 from app.utils.user_auth import verify_jwt_and_get_user_id
 from fastapi import Query
+from app.services.project_services import get_project_metrics
 
 
 project_router = APIRouter(prefix="/projects", tags=["projects"])
@@ -51,3 +52,18 @@ async def update_project_handler(
 ):
     print("/projects/project_id route reached")
     return await update_project(supabase, project_id, user_id, project_update_payload)
+
+
+#########################################################################################################
+
+# Add this route handler to your existing app/routes/project_routes.py file
+
+
+@project_router.get("/{project_id}/metrics", response_model=ProjectMetricsResponse)
+async def get_project_metrics_handler(
+    project_id: UUID,
+    supabase: AsyncClient = Depends(get_async_supabase_client),
+    user_id: UUID = Depends(verify_jwt_and_get_user_id),
+):
+    print(f"/projects/{project_id}/metrics route reached")
+    return await get_project_metrics(supabase, project_id, user_id)

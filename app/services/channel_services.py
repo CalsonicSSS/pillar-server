@@ -1,4 +1,4 @@
-from app.models.channel_models import ChannelCreate, ChannelUpdate, ChannelResponse, ChannelDeletionResponse
+from app.models.channel_models import ChannelCreate, ChannelUpdate, ChannelResponse, ChannelDeletionResponse, ChannelMetricsResponse
 from typing import List
 from uuid import UUID
 from supabase._async.client import AsyncClient
@@ -129,6 +129,47 @@ async def delete_channel(supabase: AsyncClient, channel_id: UUID, user_id: UUID)
         return ChannelDeletionResponse(status="success", status_message="Channel deleted successfully")
 
     except (DataBaseError, UserAuthError):
+        raise
+    except Exception as e:
+        print(traceback.format_exc())
+        raise GeneralServerError(error_detail_message="Something went wrong from our side. Please try again later.")
+
+
+################################################################################################################################
+
+# Add this function to your existing app/services/channel_services.py file
+
+
+async def get_channel_metrics(supabase: AsyncClient, channel_id: UUID, user_id: UUID) -> ChannelMetricsResponse:
+    """
+    Get metrics for a specific channel including contacts count and total messages count.
+    """
+    print("get_channel_metrics service function runs")
+    try:
+        # Verify channel belongs to user's project
+        channel_verification_result = await supabase.rpc(
+            "get_channel_with_user_verification", {"channel_id_param": str(channel_id), "user_id_param": str(user_id)}
+        ).execute()
+
+        if not channel_verification_result.data:
+            raise UserAuthError(error_detail_message="Channel not found or access denied")
+
+        # Get contacts count for this channel
+        contacts_result = await supabase.table("contacts").select("id").eq("channel_id", str(channel_id)).execute()
+        contacts_count = len(contacts_result.data)
+
+        # Get total messages count for all contacts in this channel
+        if contacts_count > 0:
+            contact_ids = [contact["id"] for contact in contacts_result.data]
+            # Count all messages for these contacts
+            messages_result = await supabase.table("messages").select("id").in_("contact_id", contact_ids).execute()
+            messages_count = len(messages_result.data)
+        else:
+            messages_count = 0
+
+        return ChannelMetricsResponse(contacts_count=contacts_count, messages_count=messages_count)
+
+    except UserAuthError:
         raise
     except Exception as e:
         print(traceback.format_exc())

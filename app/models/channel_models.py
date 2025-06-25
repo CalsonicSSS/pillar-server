@@ -31,3 +31,11 @@ class ChannelResponse(ChannelBase):
 class ChannelDeletionResponse(BaseModel):
     status: str
     status_message: str
+
+
+# ##########################################################################################################################
+
+
+class ChannelMetricsResponse(BaseModel):
+    contacts_count: int
+    messages_count: int

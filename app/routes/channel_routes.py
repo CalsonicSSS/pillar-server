@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, Body, Path
-from app.models.channel_models import ChannelResponse, ChannelDeletionResponse
-from app.services.channel_services import get_project_channels, get_channel_by_id, update_channel, delete_channel
+from app.models.channel_models import ChannelResponse, ChannelDeletionResponse, ChannelMetricsResponse
+from app.services.channel_services import get_project_channels, get_channel_by_id, update_channel, delete_channel, get_channel_metrics
 from app.utils.app_states import get_async_supabase_client
 from typing import List
 from uuid import UUID
@@ -38,3 +38,18 @@ async def delete_channel_handler(
 ):
     print("/channels/{channel_id} DELETE route reached")
     return await delete_channel(supabase, channel_id, user_id)
+
+
+###########################################################################################################
+
+# Add this route handler to your existing app/routes/channel_routes.py file
+
+
+@channel_router.get("/{channel_id}/metrics", response_model=ChannelMetricsResponse)
+async def get_channel_metrics_handler(
+    channel_id: UUID,
+    supabase: AsyncClient = Depends(get_async_supabase_client),
+    user_id: UUID = Depends(verify_jwt_and_get_user_id),
+):
+    print(f"/channels/{channel_id}/metrics route reached")
+    return await get_channel_metrics(supabase, channel_id, user_id)

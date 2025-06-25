@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, Body, Path
-from app.models.contact_models import ContactCreate, ContactResponse, ContactUpdate, ContactDeletionResponse
-from app.services.contact_services import create_contact, get_channel_contacts, get_contact_by_id, update_contact, delete_contact
+from app.models.contact_models import ContactCreate, ContactResponse, ContactUpdate, ContactDeletionResponse, ContactMetricsResponse
+from app.services.contact_services import create_contact, get_channel_contacts, get_contact_by_id, update_contact, delete_contact, get_contact_metrics
 from app.utils.app_states import get_async_supabase_client
 from typing import List
 from uuid import UUID
@@ -59,3 +59,16 @@ async def delete_contact_handler(
 ):
     print("/contacts/{contact_id} DELETE route reached")
     return await delete_contact(supabase, contact_id, user_id)
+
+
+################################################################################################################
+
+
+@contact_router.get("/{contact_id}/metrics", response_model=ContactMetricsResponse)
+async def get_contact_metrics_handler(
+    contact_id: UUID,
+    supabase: AsyncClient = Depends(get_async_supabase_client),
+    user_id: UUID = Depends(verify_jwt_and_get_user_id),
+):
+    print(f"/contacts/{contact_id}/metrics route reached")
+    return await get_contact_metrics(supabase, contact_id, user_id)

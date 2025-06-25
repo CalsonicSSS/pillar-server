@@ -1,4 +1,4 @@
-from app.models.contact_models import ContactCreate, ContactUpdate, ContactResponse, ContactDeletionResponse
+from app.models.contact_models import ContactCreate, ContactUpdate, ContactResponse, ContactDeletionResponse, ContactMetricsResponse
 from typing import List
 from uuid import UUID
 from supabase._async.client import AsyncClient
@@ -148,6 +148,45 @@ async def delete_contact(supabase: AsyncClient, contact_id: UUID, user_id: UUID)
         return ContactDeletionResponse(status="success", status_message="Contact deleted successfully")
 
     except (DataBaseError, UserAuthError):
+        raise
+    except Exception as e:
+        print(traceback.format_exc())
+        raise GeneralServerError(error_detail_message="Something went wrong from our side. Please try again later.")
+
+
+#############################################################################################################
+
+
+async def get_contact_metrics(supabase: AsyncClient, contact_id: UUID, user_id: UUID) -> ContactMetricsResponse:
+    """
+    Get metrics for a specific contact including message count and last activity date.
+    """
+    print("get_contact_metrics service function runs")
+    try:
+        # Verify contact belongs to user's project through channel
+        contact_verification_result = await supabase.rpc(
+            "get_contact_with_user_verification", {"contact_id_param": str(contact_id), "user_id_param": str(user_id)}
+        ).execute()
+
+        if not contact_verification_result.data:
+            raise UserAuthError(error_detail_message="Contact not found or access denied")
+
+        # Get all messages for this contact
+        messages_result = (
+            await supabase.table("messages").select("registered_at").eq("contact_id", str(contact_id)).order("registered_at", desc=True).execute()
+        )
+
+        messages_count = len(messages_result.data)
+
+        # Get last activity (latest message timestamp)
+        last_activity = None
+        if messages_count > 0:
+            # The first message in the ordered result is the latest
+            last_activity = messages_result.data[0]["registered_at"]
+
+        return ContactMetricsResponse(messages_count=messages_count, last_activity=last_activity)
+
+    except UserAuthError:
         raise
     except Exception as e:
         print(traceback.format_exc())

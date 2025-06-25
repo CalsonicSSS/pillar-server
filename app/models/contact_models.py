@@ -30,3 +30,15 @@ class ContactResponse(ContactBase):
 class ContactDeletionResponse(BaseModel):
     status: str
     status_message: str
+
+
+########################################################################################################################
+
+# Add this to your existing app/models/contact_models.py file
+
+from typing import Optional
+
+
+class ContactMetricsResponse(BaseModel):
+    messages_count: int
+    last_activity: Optional[str] = None  # ISO datetime string of latest message
