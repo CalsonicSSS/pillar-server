@@ -37,8 +37,9 @@ Task Guidelines:
 Response Format:
 1. Format your entire response with bullet points based output only (without any other generate content besides the generated bullet points), with each point on a new line starting with "•"
 2. Make sure your overall summarization bullet points are concise and straight to the point.
-3. Use professional, direct language.
-4. If there are no communications message or entire provide communication messages are non-work related, your only bullet point should be "• No important summary during this {time_scope}."
+3. Summarization need to be super high level, and no need to be too detailed, but still capture the essence of the communication. Limit to maximum 5 bullet points only.
+4. Use professional, direct language.
+5. If there are no communications message or entire provide communication messages are non-work related, your only bullet point should be "• No important summary during this {time_scope}."
 """
 
     return user_prompt
